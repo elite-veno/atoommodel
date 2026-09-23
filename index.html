@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Atoommodel 3D</title>
+<meta name="description" content="Interactieve 3D-atoomviewer: toon elk element of elke isotoop als bohrmodel met protonen, neutronen en elektronen.">
+<style>
+  :root {
+    --bg: #060913;
+    --bg-2: #0c1122;
+    --surface: #10172b;
+    --surface-2: #151d35;
+    --line: #222c49;
+    --text: #e7ecf6;
+    --muted: #8f9bb8;
+    --faint: #5d6886;
+    --accent: #4dabf7;
+    --proton: #e5484d;
+    --neutron: #a3adc2;
+    --electron: #6fe7ff;
+    --ok: #51cf66;
+    --warn: #ffb454;
+    --err: #ff6b6b;
+    --radius: 12px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .45; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- Kop ---------- */
+  .top {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px 24px;
+    align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(180deg, #0b1122, #080c18);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { width: 34px; height: 34px; flex: none; }
+  .brand h1 { margin: 0; font-size: 18px; letter-spacing: .2px; }
+  .brand p { margin: 0; font-size: 12.5px; color: var(--muted); }
+  .search { display: flex; gap: 8px; max-width: 620px; width: 100%; }
+  .search input {
+    flex: 1; min-width: 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg-2);
+    font-size: 16px;
+  }
+  .search input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .primary {
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #06101f;
+    font-weight: 650;
+  }
+  .primary:hover { filter: brightness(1.1); }
+  .sub-row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .examples span { font-size: 12.5px; color: var(--muted); margin-right: 2px; }
+  .examples button, .suggest {
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    font-size: 13px;
+  }
+  .examples button:hover, .suggest:hover { border-color: var(--accent); }
+  .msg {
+    grid-column: 1 / -1;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    border: 1px solid;
+  }
+  .msg.error { color: #ffd0d0; background: #3a1418; border-color: #6b2229; }
+  .msg.warn { color: #ffe3b8; background: #34260f; border-color: #6a4a17; }
+  .msg .suggest { margin-left: 4px; color: #fff; }
+
+  /* ---------- Lay-out ---------- */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 390px;
+    min-height: 0;
+  }
+  @media (min-width: 901px) {
+    body { height: 100vh; overflow: hidden; }
+    .panel { overflow-y: auto; }
+  }
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+    .viewer { height: 64vh; min-height: 360px; }
+    .top { grid-template-columns: minmax(0, 1fr); }
+    .search { max-width: none; }
+  }
+
+  /* ---------- 3D-weergave ---------- */
+  .viewer {
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 45%, #111a37 0%, #080c1a 55%, #04060d 100%);
+  }
+  #canvas-host { position: absolute; inset: 0; }
+  #canvas-host canvas { display: block; outline: none; }
+  .label-layer { position: absolute; inset: 0; pointer-events: none; }
+  .label-layer.no-shells .shell-label { display: none; }
+  .shell-label span {
+    display: inline-block;
+    margin-left: 34px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    white-space: nowrap;
+    color: #dff3ff;
+    background: rgba(8, 12, 26, .72);
+    border: 1px solid var(--c);
+  }
+  .shell-label b { color: var(--c); margin-right: 4px; }
+  .nuc-label span {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    white-space: nowrap;
+    background: rgba(8, 12, 26, .72);
+    border: 1px solid #3a4466;
+  }
+  .nuc-label .p { color: #ff8a8d; }
+  .nuc-label .n { color: #c9d1e2; }
+
+  .ov { position: absolute; display: flex; gap: 6px; pointer-events: none; z-index: 2; }
+  .ov > * { pointer-events: auto; }
+  .ov-tl { top: 12px; left: 12px; flex-wrap: wrap; max-width: calc(100% - 150px); }
+  .ov-tr { top: 12px; right: 12px; flex-direction: column; align-items: flex-end; }
+  .ov-bl { left: 12px; bottom: 12px; flex-direction: column; align-items: flex-start; max-width: calc(100% - 24px); }
+  .ov-br { right: 12px; bottom: 12px; }
+  .tool {
+    padding: 6px 11px;
+    border-radius: 9px;
+    border: 1px solid #2a3558;
+    background: rgba(13, 19, 38, .82);
+    font-size: 13px;
+    backdrop-filter: blur(6px);
+  }
+  .tool:hover:not(:disabled) { border-color: var(--accent); }
+  .tool[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 30%, #0d1326); border-color: var(--accent); }
+  .controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+    padding: 7px 12px;
+    border-radius: 10px;
+    border: 1px solid #2a3558;
+    background: rgba(13, 19, 38, .82);
+    backdrop-filter: blur(6px);
+    font-size: 13px;
+  }
+  .switch { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; }
+  .switch input { appearance: none; -webkit-appearance: none; margin: 0; width: 30px; height: 17px; border-radius: 999px; background: #2a3558; position: relative; cursor: pointer; transition: background .15s; flex: none; }
+  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #cfd7ea; transition: transform .15s; }
+  .switch input:checked { background: var(--accent); }
+  .switch input:checked::after { transform: translateX(13px); background: #fff; }
+  .switch input:disabled { opacity: .5; }
+  .speed { display: inline-flex; align-items: center; gap: 7px; }
+  .speed input { width: 96px; accent-color: var(--accent); }
+  .speed output { min-width: 34px; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .scale-note { font-size: 12px; color: var(--muted); background: rgba(8, 12, 26, .6); padding: 3px 8px; border-radius: 8px; }
+  .caption {
+    padding: 4px 10px;
+    border-radius: 9px;
+    background: rgba(13, 19, 38, .75);
+    border: 1px solid #2a3558;
+    font-size: 22px;
+  }
+  .fps { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .hint { font-size: 12px; color: var(--faint); text-align: right; line-height: 1.5; }
+  @media (max-width: 700px) { .hint { display: none; } .caption { font-size: 18px; } }
+  .viewer-msg {
+    position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
+    color: var(--muted); z-index: 1;
+  }
+
+  /* ---------- Infopaneel ---------- */
+  .panel {
+    border-left: 1px solid var(--line);
+    background: var(--bg-2);
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  @media (max-width: 900px) { .panel { border-left: 0; border-top: 1px solid var(--line); } }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .card h3 {
+    margin: 0 0 8px;
+    font-size: 11.5px; font-weight: 650; letter-spacing: .9px; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .hero { display: flex; gap: 14px; align-items: center; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .tile {
+    flex: none; width: 84px; height: 92px;
+    display: grid; grid-template-rows: auto 1fr auto; padding: 6px 8px;
+    border-radius: 10px;
+    border: 2px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  }
+  .tile-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tile-sym { align-self: center; justify-self: center; font-size: 34px; font-weight: 700; line-height: 1; }
+  .tile-name { font-size: 11px; text-align: center; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hero-text { min-width: 0; }
+  .hero h2 { margin: 0; font-size: 22px; line-height: 1.15; }
+  .hero .en { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
+  .hero-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+  .hero-row .nuclide { font-size: 28px; }
+  .chip {
+    display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+    border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+    color: color-mix(in srgb, var(--accent) 75%, #fff);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .nuclide { display: inline-flex; align-items: center; font-family: "Cambria Math", "STIX Two Math", "Times New Roman", Georgia, serif; line-height: 1; }
+  .nuclide .idx { display: inline-flex; flex-direction: column; align-items: flex-end; font-size: .48em; gap: .22em; margin-right: .06em; }
+  .nuclide .sym { font-weight: 600; }
+  .nuclide .q { font-size: .48em; align-self: flex-start; margin-left: .04em; }
+
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .stat { background: var(--surface-2); border-radius: 9px; padding: 7px 10px; }
+  .stat .k { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .stat .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+  .dot.p { background: var(--proton); }
+  .dot.n { background: var(--neutron); }
+  .dot.e { background: var(--electron); box-shadow: 0 0 6px var(--electron); }
+  .dot.a { background: linear-gradient(90deg, var(--proton) 50%, var(--neutron) 50%); }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .row:first-of-type { border-top: 0; }
+  .row .k { color: var(--muted); flex: none; }
+  .row .v { text-align: right; }
+  .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace; font-size: 14px; }
+  .config-main { font-size: 17px; margin: 2px 0 4px; word-break: break-word; }
+  .config-full { font-size: 12.5px; color: var(--muted); word-break: break-word; }
+  .note { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+  .shells { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .shells span { padding: 3px 9px; border-radius: 8px; background: var(--surface-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .shells b { color: var(--electron); margin-right: 5px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-weight: 650; font-size: 13px; }
+  .badge.stable { color: #b7f5c4; background: #12331c; border: 1px solid #25643a; }
+  .badge.radio { color: #ffdcae; background: #3a2610; border: 1px solid #7a4d1a; }
+  .badge.unknown { color: #d7dcea; background: #252c42; border: 1px solid #3d4766; }
+  .warnbox { margin-top: 8px; padding: 8px 10px; border-radius: 9px; font-size: 13px; color: #ffe3b8; background: #34260f; border: 1px solid #6a4a17; }
+  .iso-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .iso-list button {
+    padding: 3px 9px; border-radius: 8px; font-size: 13px;
+    border: 1px solid var(--line); background: var(--surface-2);
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .iso-list button:hover { border-color: var(--accent); }
+  .iso-list button.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); }
+  .iso-list .s { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+  .iso-list .r { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+  .subtable { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .subtable th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 0 6px 4px 0; }
+  .subtable td { padding: 3px 6px 3px 0; border-top: 1px solid var(--line); }
+  .sub-tag { display: inline-block; min-width: 28px; padding: 0 6px; border-radius: 6px; font-weight: 650; text-align: center; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+  .sub-tag.l0 { --c: #6fd3ff; } .sub-tag.l1 { --c: #8ce99a; } .sub-tag.l2 { --c: #ffd166; } .sub-tag.l3 { --c: #f783ac; }
+  .seg { display: inline-flex; align-items: center; gap: 6px; }
+  .seg > span { color: var(--muted); }
+  .seg-btns { display: inline-flex; border: 1px solid #2a3558; border-radius: 8px; overflow: hidden; }
+  .seg-btns button { padding: 3px 10px; border: 0; background: transparent; font-size: 13px; }
+  .seg-btns button + button { border-left: 1px solid #2a3558; }
+  .seg-btns button[aria-pressed="true"] { background: var(--accent); color: #06101f; font-weight: 650; }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 13.5px; }
+  .legend div { display: flex; align-items: center; gap: 8px; }
+  .ring-swatch { width: 18px; height: 10px; border-radius: 50%; border: 1.5px solid #8c9dff; flex: none; }
+  .scale-card { font-size: 13px; color: var(--muted); }
+  .scale-card strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <g fill="none" stroke="#6fd3ff" stroke-width="1.6" opacity=".9">
+        <ellipse cx="20" cy="20" rx="17" ry="6.5"/>
+        <ellipse cx="20" cy="20" rx="17" ry="6.5" transform="rotate(60 20 20)"/>
+        <ellipse cx="20" cy="20" rx="17" ry="6.5" transform="rotate(120 20 20)"/>
+      </g>
+      <circle cx="18.2" cy="19" r="3" fill="#e5484d"/><circle cx="21.8" cy="19.4" r="3" fill="#a3adc2"/><circle cx="20" cy="22" r="3" fill="#e5484d"/>
+    </svg>
+    <div>
+      <h1>Atoommodel 3D</h1>
+      <p>Bohrmodel van elk element en elke isotoop</p>
+    </div>
+  </div>
+  <form class="search" id="search" autocomplete="off">
+    <input id="q" type="text" placeholder="Element of isotoop, bv. C-14, ijzer, U-235, Na+" aria-label="Element of isotoop" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="go">
+    <button type="submit" class="primary">Toon</button>
+  </form>
+  <div class="sub-row">
+    <div class="examples" id="examples"><span>Voorbeelden:</span></div>
+  </div>
+  <div id="msg" class="msg" role="status" aria-live="polite" hidden></div>
+</header>
+
+<main>
+  <section class="viewer" id="viewer" aria-label="3D-weergave van het atoom">
+    <div id="canvas-host"></div>
+    <div id="viewer-msg" class="viewer-msg">3D-weergave laden…</div>
+
+    <div class="ov ov-tl">
+      <button type="button" class="tool" id="btn-reset" disabled>Reset camera</button>
+      <button type="button" class="tool" id="btn-rotate" aria-pressed="false" disabled>Automatisch roteren</button>
+      <button type="button" class="tool" id="btn-pause" aria-pressed="false" disabled>Pauzeer elektronen</button>
+    </div>
+    <div class="ov ov-tr">
+      <div class="caption" id="caption"></div>
+      <div class="fps" id="fps"></div>
+    </div>
+    <div class="ov ov-bl">
+      <div class="controls">
+        <span class="seg" role="group" aria-label="Atoommodel"><span>Model</span><span class="seg-btns">
+          <button type="button" data-model="bohr" aria-pressed="true" disabled>Bohr</button><button type="button" data-model="sommerfeld" aria-pressed="false" disabled>Sommerfeld</button>
+        </span></span>
+        <label class="switch"><input type="checkbox" id="tgl-shells" checked disabled>Schillen</label>
+        <label class="switch"><input type="checkbox" id="tgl-labels" checked disabled>Labels</label>
+        <label class="switch"><input type="checkbox" id="tgl-enlarge" disabled>Kern vergroten</label>
+        <label class="speed">Snelheid <input type="range" id="speed" min="0.1" max="3" step="0.1" value="1" disabled aria-label="Snelheid van de elektronen"><output id="speed-out">1,0×</output></label>
+      </div>
+      <div class="scale-note">Niet op schaal: in werkelijkheid is de kern ongeveer 100.000 keer kleiner dan het atoom.</div>
+    </div>
+    <div class="ov ov-br hint">
+      Muis: links = draaien · scroll = zoomen · rechts = verschuiven<br>
+      Touch: 1 vinger = draaien · 2 vingers = zoomen/verschuiven
+    </div>
+  </section>
+
+  <aside class="panel" id="panel" aria-live="polite"></aside>
+</main>
+
+<!-- ===================== Data + logica (zonder DOM, ook testbaar) ===================== -->
+<script id="atom-core">
+(function () {
+  'use strict';
+
+  // Z  symbool  naam-NL  naam-EN  categorie  standaard-A  isotopen
+  // Isotopen: "A" = stabiel, "A:t½" = radioactief. Eenheden: ms, s, m (min), h, d, y. "~" = benaderd.
+  const RAW = `
+1 H waterstof hydrogen nm 1 1,2,3:12.32y
+2 He helium helium eg 4 3,4,6:806.7ms
+3 Li lithium lithium am 7 6,7,8:839.4ms
+4 Be beryllium beryllium aa 9 7:53.22d,9,10:1.387e6y
+5 B boor boron md 11 8:770ms,10,11,12:20.2ms
+6 C koolstof carbon nm 12 11:20.34m,12,13,14:5730y
+7 N stikstof nitrogen nm 14 13:9.965m,14,15,16:7.13s
+8 O zuurstof oxygen nm 16 15:122.24s,16,17,18,19:26.47s
+9 F fluor fluorine ha 19 18:109.77m,19,20:11.07s
+10 Ne neon neon eg 20 19:17.22s,20,21,22,24:3.38m
+11 Na natrium sodium am 23 22:2.6018y,23,24:14.957h
+12 Mg magnesium magnesium aa 24 24,25,26,27:9.458m,28:20.915h
+13 Al aluminium aluminium pm 27 26:7.17e5y,27,28:2.245m
+14 Si silicium silicon md 28 28,29,30,31:157.3m,32:153y
+15 P fosfor phosphorus nm 31 30:2.498m,31,32:14.268d,33:25.35d
+16 S zwavel sulfur nm 32 32,33,34,35:87.37d,36
+17 Cl chloor chlorine ha 35 35,36:3.01e5y,37,38:37.24m
+18 Ar argon argon eg 40 36,37:35.04d,38,39:268y,40,41:109.61m
+19 K kalium potassium am 39 39,40:1.248e9y,41,42:12.355h
+20 Ca calcium calcium aa 40 40,41:9.94e4y,42,43,44,45:162.6d,46,47:4.536d,48:5.6e19y
+21 Sc scandium scandium om 45 44:3.97h,45,46:83.79d,47:3.3492d
+22 Ti titanium titanium om 48 44:59.1y,46,47,48,49,50
+23 V vanadium vanadium om 51 48:15.9735d,49:330d,50:2.71e17y,51
+24 Cr chroom chromium om 52 50,51:27.7025d,52,53,54
+25 Mn mangaan manganese om 55 53:3.7e6y,54:312.2d,55,56:2.5789h
+26 Fe ijzer iron om 56 54,55:2.744y,56,57,58,59:44.49d,60:2.62e6y
+27 Co kobalt cobalt om 59 56:77.24d,57:271.74d,58:70.86d,59,60:5.2714y
+28 Ni nikkel nickel om 58 56:6.075d,58,59:7.6e4y,60,61,62,63:101.2y,64
+29 Cu koper copper om 63 63,64:12.701h,65,67:61.83h
+30 Zn zink zinc om 64 64,65:243.93d,66,67,68,70
+31 Ga gallium gallium pm 69 67:3.2617d,68:67.71m,69,71,72:14.1h
+32 Ge germanium germanium md 74 68:270.9d,70,72,73,74,76:1.88e21y
+33 As arseen arsenic md 75 73:80.3d,74:17.77d,75,76:26.24h
+34 Se seleen selenium nm 80 74,75:119.78d,76,77,78,79:3.27e5y,80,82:8.76e19y
+35 Br broom bromine ha 79 77:57.04h,79,81,82:35.28h
+36 Kr krypton krypton eg 84 78,80,81:2.29e5y,82,83,84,85:10.739y,86
+37 Rb rubidium rubidium am 85 85,86:18.642d,87:4.97e10y
+38 Sr strontium strontium aa 88 84,86,87,88,89:50.563d,90:28.79y
+39 Y yttrium yttrium om 89 88:106.6d,89,90:64.05h,91:58.51d
+40 Zr zirkonium zirconium om 90 90,91,92,93:1.61e6y,94,95:64.032d,96:2.34e19y
+41 Nb niobium niobium om 93 93,94:2.03e4y,95:34.991d
+42 Mo molybdeen molybdenum om 98 92,93:4.0e3y,94,95,96,97,98,99:65.976h,100:7.07e18y
+43 Tc technetium technetium om 97 97:4.21e6y,98:4.2e6y,99:2.111e5y
+44 Ru ruthenium ruthenium om 102 96,98,99,100,101,102,103:39.247d,104,106:371.8d
+45 Rh rodium rhodium om 103 101:3.3y,102:207d,103,105:35.36h
+46 Pd palladium palladium om 106 102,103:16.991d,104,105,106,107:6.5e6y,108,110
+47 Ag zilver silver om 107 105:41.29d,107,109,111:7.45d
+48 Cd cadmium cadmium om 114 106,108,109:461.4d,110,111,112,113:8.04e15y,114,116:3.1e19y
+49 In indium indium pm 113 111:2.8047d,113,115:4.41e14y
+50 Sn tin tin pm 120 112,113:115.09d,114,115,116,117,118,119,120,122,124,126:2.3e5y
+51 Sb antimoon antimony md 121 121,123,124:60.2d,125:2.7586y
+52 Te telluur tellurium md 126 120,122,123,124,125,126,128:2.2e24y,130:7.9e20y
+53 I jood iodine ha 127 123:13.22h,125:59.4d,127,129:1.57e7y,131:8.0252d
+54 Xe xenon xenon eg 132 124:1.8e22y,126,128,129,130,131,132,133:5.247d,134,135:9.14h,136:2.165e21y
+55 Cs cesium caesium am 133 133,134:2.0652y,135:2.3e6y,137:30.08y
+56 Ba barium barium aa 138 130:~1.6e21y,132,133:10.551y,134,135,136,137,138,140:12.7527d
+57 La lanthaan lanthanum la 139 137:6e4y,138:1.03e11y,139,140:1.6781d
+58 Ce cerium cerium la 140 136,138,140,141:32.508d,142,144:284.91d
+59 Pr praseodymium praseodymium la 141 141,143:13.57d
+60 Nd neodymium neodymium la 142 142,143,144:2.29e15y,145,146,147:10.98d,148,150:9.3e18y
+61 Pm promethium promethium la 145 145:17.7y,146:5.53y,147:2.6234y
+62 Sm samarium samarium la 152 144,146:1.03e8y,147:1.06e11y,148:7e15y,149,150,151:94.6y,152,153:46.284h,154
+63 Eu europium europium la 153 151:4.62e18y,152:13.517y,153,154:8.601y,155:4.753y
+64 Gd gadolinium gadolinium la 158 148:71.1y,152:1.08e14y,153:240.4d,154,155,156,157,158,160
+65 Tb terbium terbium la 159 157:71y,158:180y,159,160:72.3d
+66 Dy dysprosium dysprosium la 164 154:3.0e6y,156,158,160,161,162,163,164,166:81.6h
+67 Ho holmium holmium la 165 163:4570y,165,166:26.824h
+68 Er erbium erbium la 166 162,164,166,167,168,169:9.392d,170
+69 Tm thulium thulium la 169 169,170:128.6d,171:1.92y
+70 Yb ytterbium ytterbium la 174 168,169:32.018d,170,171,172,173,174,175:4.185d,176
+71 Lu lutetium lutetium la 175 175,176:3.701e10y,177:6.647d
+72 Hf hafnium hafnium om 180 174:7.0e16y,176,177,178,179,180,182:8.9e6y
+73 Ta tantaal tantalum om 181 179:1.82y,181,182:114.74d
+74 W wolfraam tungsten om 184 180:1.8e18y,181:121.2d,182,183,184,185:75.1d,186,188:69.78d
+75 Re renium rhenium om 185 185,186:3.7186d,187:4.12e10y,188:17.003h
+76 Os osmium osmium om 192 184,185:93.6d,186:2.0e15y,187,188,189,190,191:15.4d,192,194:6.0y
+77 Ir iridium iridium om 193 191,192:73.829d,193,194:19.28h
+78 Pt platina platinum om 195 190:4.83e11y,192,193:50y,194,195,196,198
+79 Au goud gold om 197 195:186.01d,197,198:2.6941d,199:3.139d
+80 Hg kwik mercury om 202 194:444y,196,198,199,200,201,202,203:46.594d,204
+81 Tl thallium thallium pm 205 201:72.912h,203,204:3.783y,205
+82 Pb lood lead pm 208 202:5.25e4y,204,205:1.73e7y,206,207,208,210:22.2y,212:10.64h
+83 Bi bismut bismuth pm 209 207:31.55y,208:3.68e5y,209:2.01e19y,210:5.012d
+84 Po polonium polonium pm 209 208:2.898y,209:124y,210:138.376d
+85 At astaat astatine ha 210 209:5.41h,210:8.1h,211:7.214h
+86 Rn radon radon eg 222 211:14.6h,220:55.6s,222:3.8235d
+87 Fr francium francium am 223 221:4.801m,222:14.2m,223:22.00m
+88 Ra radium radium aa 226 223:11.43d,224:3.6319d,225:14.9d,226:1600y,228:5.75y
+89 Ac actinium actinium ac 227 225:9.919d,227:21.772y,228:6.15h
+90 Th thorium thorium ac 232 228:1.9116y,229:7932y,230:7.54e4y,232:1.40e10y,234:24.1d
+91 Pa protactinium protactinium ac 231 231:3.276e4y,233:26.975d,234:6.70h
+92 U uraan uranium ac 238 232:68.9y,233:1.592e5y,234:2.455e5y,235:7.04e8y,236:2.342e7y,238:4.468e9y,239:23.45m
+93 Np neptunium neptunium ac 237 235:396.1d,236:1.54e5y,237:2.144e6y,239:2.356d
+94 Pu plutonium plutonium ac 244 238:87.7y,239:2.411e4y,240:6561y,241:14.29y,242:3.75e5y,244:8.13e7y
+95 Am americium americium ac 243 241:432.2y,242:16.02h,243:7370y
+96 Cm curium curium ac 247 242:162.8d,243:29.1y,244:18.1y,245:8500y,246:4730y,247:1.56e7y,248:3.48e5y
+97 Bk berkelium berkelium ac 247 247:1380y,249:330d
+98 Cf californium californium ac 251 249:351y,250:13.08y,251:898y,252:2.645y
+99 Es einsteinium einsteinium ac 252 252:471.7d,253:20.47d,254:275.7d
+100 Fm fermium fermium ac 257 253:3.0d,255:20.07h,257:100.5d
+101 Md mendelevium mendelevium ac 258 256:77.7m,258:51.5d,260:31.8d
+102 No nobelium nobelium ac 259 255:3.1m,259:58m
+103 Lr lawrencium lawrencium ac 266 262:~4h,266:~11h
+104 Rf rutherfordium rutherfordium om 267 263:~11m,267:~1.3h
+105 Db dubnium dubnium om 268 262:34s,268:~16h
+106 Sg seaborgium seaborgium om 269 269:~14m,271:~1.9m
+107 Bh bohrium bohrium om 270 267:~17s,270:~1m
+108 Hs hassium hassium om 269 269:~10s
+109 Mt meitnerium meitnerium on 278 276:~0.6s,278:~4s
+110 Ds darmstadtium darmstadtium on 281 281:~12.7s
+111 Rg roentgenium roentgenium on 282 282:~100s
+112 Cn copernicium copernicium on 285 285:~30s
+113 Nh nihonium nihonium on 286 286:~10s
+114 Fl flerovium flerovium on 289 289:~2s
+115 Mc moscovium moscovium on 290 290:~0.65s
+116 Lv livermorium livermorium on 293 293:~60ms
+117 Ts tennessine tennessine on 294 294:~51ms
+118 Og oganesson oganesson on 294 294:~0.7ms
+`;
+
+  const CATEGORIES = {
+    am: { nl: 'alkalimetaal', color: '#ff6b6b' },
+    aa: { nl: 'aardalkalimetaal', color: '#ffa94d' },
+    om: { nl: 'overgangsmetaal', color: '#ffd43b' },
+    pm: { nl: 'hoofdgroepmetaal', color: '#a9e34b' },
+    md: { nl: 'metalloïde', color: '#38d9a9' },
+    nm: { nl: 'niet-metaal', color: '#4dabf7' },
+    ha: { nl: 'halogeen', color: '#91a7ff' },
+    eg: { nl: 'edelgas', color: '#da77f2' },
+    la: { nl: 'lanthanide', color: '#faa2c1' },
+    ac: { nl: 'actinide', color: '#f06595' },
+    on: { nl: 'onbekende eigenschappen', color: '#adb5bd' },
+  };
+
+  // ---------- Hulpfuncties voor notatie ----------
+  const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
+  const toSup = (s) => String(s).replace(/[0-9+\-−]/g, (c) => (c === '+' ? '⁺' : c === '-' || c === '−' ? '⁻' : SUP[c]));
+  const toSub = (s) => String(s).replace(/[0-9]/g, (c) => SUB[c]);
+  const fold = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const cap = (s) => (s.startsWith('ij') ? 'IJ' + s.slice(2) : s.charAt(0).toUpperCase() + s.slice(1));
+
+  // ---------- Halfwaardetijden ----------
+  const UNIT_SECONDS = { ms: 1e-3, s: 1, m: 60, h: 3600, d: 86400, y: 31557600 };
+  const UNIT_NL = { ms: ['milliseconde', 'milliseconden'], s: ['seconde', 'seconden'], m: ['minuut', 'minuten'], h: ['uur', 'uur'], d: ['dag', 'dagen'], y: ['jaar', 'jaar'] };
+
+  function parseHalfLife(str) {
+    const m = /^(~)?(\d+(?:\.\d+)?)(?:e(\d+))?(ms|s|m|h|d|y)$/.exec(str);
+    if (!m) throw new Error('Ongeldige halfwaardetijd: ' + str);
+    const value = parseFloat(m[2]) * Math.pow(10, m[3] ? +m[3] : 0);
+    return { approx: !!m[1], mant: m[2], unit: m[4], value, seconds: value * UNIT_SECONDS[m[4]], years: value * UNIT_SECONDS[m[4]] / UNIT_SECONDS.y };
+  }
+
+  const fmtNum = (v, sig) => v.toLocaleString('nl-NL', { maximumSignificantDigits: Math.max(1, sig) });
+
+  function formatHalfLife(h) {
+    const sig = h.mant.replace('.', '').replace(/^0+/, '').length || 1;
+    let txt;
+    if (h.unit === 'y' && h.value >= 1e12) {
+      const [mant, exp] = h.value.toExponential(sig - 1).split('e');
+      txt = `${mant.replace('.', ',')} × 10${toSup(+exp)} jaar`;
+    } else if (h.unit === 'y' && h.value >= 1e6) {
+      const [div, word] = h.value >= 1e9 ? [1e9, 'miljard'] : [1e6, 'miljoen'];
+      txt = `${fmtNum(h.value / div, sig)} ${word} jaar`;
+    } else {
+      txt = `${fmtNum(h.value, sig)} ${UNIT_NL[h.unit][h.value === 1 ? 0 : 1]}`;
+    }
+    return (h.approx ? '≈ ' : '') + txt;
+  }
+
+  // ---------- Elektronenconfiguratie ----------
+  const L_LETTERS = 'spdf';
+  const SUBSHELLS = [];
+  for (let n = 1; n <= 8; n++) for (let l = 0; l < Math.min(n, 4); l++) SUBSHELLS.push({ n, l, cap: 2 * (2 * l + 1), key: n + L_LETTERS[l] });
+  SUBSHELLS.sort((a, b) => a.n + a.l - (b.n + b.l) || a.n - b.n); // regel van Madelung (n + l, dan n)
+  const SUB_BY_KEY = Object.fromEntries(SUBSHELLS.map((s) => [s.key, s]));
+  const NOBLE = [[2, 'He'], [10, 'Ne'], [18, 'Ar'], [36, 'Kr'], [54, 'Xe'], [86, 'Rn'], [118, 'Og']];
+
+  // Grondtoestanden die afwijken van de opvulvolgorde (NIST)
+  const EXCEPTIONS = {
+    24: '[Ar] 3d5 4s1', 29: '[Ar] 3d10 4s1',
+    41: '[Kr] 4d4 5s1', 42: '[Kr] 4d5 5s1', 44: '[Kr] 4d7 5s1', 45: '[Kr] 4d8 5s1', 46: '[Kr] 4d10', 47: '[Kr] 4d10 5s1',
+    57: '[Xe] 5d1 6s2', 58: '[Xe] 4f1 5d1 6s2', 64: '[Xe] 4f7 5d1 6s2', 78: '[Xe] 4f14 5d9 6s1', 79: '[Xe] 4f14 5d10 6s1',
+    89: '[Rn] 6d1 7s2', 90: '[Rn] 6d2 7s2', 91: '[Rn] 5f2 6d1 7s2', 92: '[Rn] 5f3 6d1 7s2', 93: '[Rn] 5f4 6d1 7s2',
+    96: '[Rn] 5f7 6d1 7s2', 103: '[Rn] 5f14 7s2 7p1',
+  };
+
+  function aufbau(e) {
+    const occ = {};
+    for (const s of SUBSHELLS) {
+      if (e <= 0) break;
+      const k = Math.min(s.cap, e);
+      occ[s.key] = k;
+      e -= k;
+    }
+    return occ;
+  }
+
+  function parseConfig(str) {
+    const occ = {};
+    for (const tok of str.trim().split(/\s+/)) {
+      const core = /^\[(\w+)\]$/.exec(tok);
+      if (core) Object.assign(occ, aufbau(NOBLE.find((x) => x[1] === core[1])[0]));
+      else {
+        const m = /^(\d[spdf])(\d+)$/.exec(tok);
+        occ[m[1]] = +m[2];
+      }
+    }
+    return occ;
+  }
+
+  const neutralConfig = (Z) => (EXCEPTIONS[Z] ? parseConfig(EXCEPTIONS[Z]) : aufbau(Z));
+  const countElectrons = (occ) => Object.values(occ).reduce((a, b) => a + b, 0);
+  const outer = (a, b) => SUB_BY_KEY[a].n > SUB_BY_KEY[b].n || (SUB_BY_KEY[a].n === SUB_BY_KEY[b].n && SUB_BY_KEY[a].l > SUB_BY_KEY[b].l);
+
+  // Grootste edelgaskern die volledig in de configuratie zit
+  function coreOf(occ, total) {
+    let best = null;
+    for (const [z, sym] of NOBLE) {
+      if (z >= total) break;
+      const core = aufbau(z);
+      if (Object.keys(core).every((k) => (occ[k] || 0) >= core[k])) best = { z, sym, occ: core };
+    }
+    return best;
+  }
+
+  // Configuratie van een ion: kationen verliezen eerst de buitenste valentie-elektronen (hoogste n, dan hoogste l),
+  // anionen vullen verder volgens Madelung.
+  function ionConfig(Z, electrons) {
+    const occ = { ...neutralConfig(Z) };
+    let e = Z;
+    if (electrons < e) {
+      const core = coreOf(occ, Z);
+      const coreOcc = core ? core.occ : {};
+      while (e > electrons) {
+        let pick = null;
+        for (const k in occ) if (occ[k] - (coreOcc[k] || 0) > 0 && (!pick || outer(k, pick))) pick = k;
+        if (!pick) for (const k in occ) if (occ[k] > 0 && (!pick || outer(k, pick))) pick = k;
+        if (--occ[pick] === 0) delete occ[pick];
+        e--;
+      }
+    } else {
+      while (e < electrons) {
+        const s = SUBSHELLS.find((x) => (occ[x.key] || 0) < x.cap);
+        occ[s.key] = (occ[s.key] || 0) + 1;
+        e++;
+      }
+    }
+    return occ;
+  }
+
+  const sortedKeys = (occ) => Object.keys(occ).filter((k) => occ[k] > 0)
+    .sort((a, b) => SUB_BY_KEY[a].n - SUB_BY_KEY[b].n || SUB_BY_KEY[a].l - SUB_BY_KEY[b].l);
+
+  function configString(occ, { short = true } = {}) {
+    const total = countElectrons(occ);
+    if (total === 0) return '—';
+    const core = short && total > 10 ? coreOf(occ, total) : null;
+    const coreOcc = core ? core.occ : {};
+    const parts = sortedKeys(occ)
+      .map((k) => [k, occ[k] - (coreOcc[k] || 0)])
+      .filter(([, c]) => c > 0)
+      .map(([k, c]) => k + toSup(c));
+    return (core ? `[${core.sym}] ` : '') + parts.join(' ');
+  }
+
+  // Subschillen in de volgorde n, l — met Sommerfelds nevenkwantumgetal k = l + 1
+  // en de excentriciteit van de bijbehorende ellipsbaan: e = √(1 − (k/n)²)
+  const subshellList = (occ) => sortedKeys(occ).map((key) => {
+    const { n, l } = SUB_BY_KEY[key];
+    return { key, n, l, k: l + 1, count: occ[key], ecc: Math.sqrt(1 - ((l + 1) / n) ** 2) };
+  });
+
+  function shellCounts(occ) {
+    const shells = [];
+    for (const k in occ) {
+      const n = SUB_BY_KEY[k].n;
+      shells[n - 1] = (shells[n - 1] || 0) + occ[k];
+    }
+    for (let i = 0; i < shells.length; i++) shells[i] = shells[i] || 0;
+    while (shells.length && shells[shells.length - 1] === 0) shells.pop();
+    return shells;
+  }
+
+  // ---------- Dataset opbouwen ----------
+  const ELEMENTS = [null];
+  for (const line of RAW.trim().split('\n')) {
+    const [z, symbol, nl, en, category, std, iso] = line.trim().split(/\s+/);
+    const isotopes = iso.split(',').map((t) => {
+      const [a, hl] = t.split(':');
+      return { A: +a, stable: !hl, halfLife: hl ? parseHalfLife(hl) : null };
+    });
+    const Z = +z;
+    ELEMENTS.push({ Z, symbol, nl, en, category, standardA: +std, isotopes, config: neutralConfig(Z) });
+  }
+
+  const BY_KEY = {};
+  for (const el of ELEMENTS.slice(1)) {
+    BY_KEY[el.symbol.toLowerCase()] = { el };
+    BY_KEY[fold(el.nl)] = { el };
+    BY_KEY[fold(el.en)] = { el };
+  }
+  const ALIASES = {
+    aluminum: [13], sulphur: [16], jodium: [53], titaan: [22], wolfram: [74], bismuth: [83], cesium: [55],
+    protium: [1, 1], deuterium: [1, 2], tritium: [1, 3], d: [1, 2], t: [1, 3],
+  };
+  for (const [name, [z, a]] of Object.entries(ALIASES)) BY_KEY[name] = { el: ELEMENTS[z], A: a ?? null };
+
+  const lookup = (token) => BY_KEY[fold(token).replace(/\s+/g, '')] || null;
+
+  // ---------- Suggesties bij tikfouten ----------
+  function lev(a, b) {
+    const dp = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = dp[0];
+      dp[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const tmp = dp[j];
+        dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = tmp;
+      }
+    }
+    return dp[b.length];
+  }
+
+  function suggestions(token) {
+    const t = fold(token);
+    const scored = [];
+    for (const el of ELEMENTS.slice(1)) {
+      let best = Infinity;
+      const sym = el.symbol.toLowerCase();
+      if (t.length <= 3) {
+        const d = lev(t, sym);
+        if (d <= 1) best = d + (sym.length !== t.length ? 0.15 : 0);
+      }
+      for (const name of [el.nl, el.en]) {
+        const nm = fold(name);
+        let d = lev(t, nm);
+        if (t.length >= 3 && nm.startsWith(t)) d = Math.min(d, 0.5);
+        if (d <= Math.max(1, Math.floor(nm.length / 4))) best = Math.min(best, d);
+      }
+      if (best < Infinity) scored.push([best + el.Z / 300, el]);
+    }
+    return scored.sort((a, b) => a[0] - b[0]).slice(0, 4).map((x) => x[1].symbol);
+  }
+
+  // ---------- Invoer interpreteren ----------
+  const SUP_IN = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-' };
+
+  function normalizeInput(raw) {
+    return String(raw)
+      .replace(/[₀-₉₊₋]/g, '') // onderschrift (atoomnummer in ¹⁴₆C) is overbodig
+      .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]/g, (c) => SUP_IN[c])
+      .replace(/[−–—‐]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function parseBase(base) {
+    if (/^\d+$/.test(base)) {
+      const Z = +base;
+      if (Z >= 1 && Z <= 118) return { el: ELEMENTS[Z], A: null };
+      return { kind: 'range', rank: 2, error: `Atoomnummer ${Z} bestaat niet. Kies een atoomnummer van 1 tot en met 118.` };
+    }
+    let m, token, A = null;
+    if ((m = /^(\d+)\s*-?\s*([a-zà-ÿ]+)$/i.exec(base))) [A, token] = [+m[1], m[2]];
+    else if ((m = /^([a-zà-ÿ]+)\s*-?\s*(\d+)$/i.exec(base))) [token, A] = [m[1], +m[2]];
+    else if ((m = /^([a-zà-ÿ]+)$/i.exec(base))) token = m[1];
+    else return { kind: 'notation', rank: 1 };
+    const hit = lookup(token);
+    if (!hit) return { kind: 'unknown', rank: 3, token };
+    if (hit.A != null && A != null && hit.A !== A) {
+      return { kind: 'conflict', rank: 2, error: `„${token}” heeft altijd massagetal ${hit.A}, niet ${A}.` };
+    }
+    return { el: hit.el, A: A ?? hit.A };
+  }
+
+  const chargeText = (q) => (q === 0 ? '0' : (q > 0 ? '+' : '−') + Math.abs(q));
+  const ionSuffix = (q) => (q === 0 ? '' : (Math.abs(q) > 1 ? Math.abs(q) : '') + (q > 0 ? '+' : '-'));
+
+  function build(el, A, charge) {
+    const Z = el.Z;
+    const name = el.nl;
+    const isStandard = A == null;
+    if (isStandard) A = el.standardA;
+    if (A < Z) {
+      return { error: `Ongeldig massagetal: ${el.symbol}-${A} bestaat niet. Het massagetal (${A}) is kleiner dan het atoomnummer van ${name} (Z = ${Z}). Het massagetal telt protonen + neutronen en is dus minstens ${Z}.` };
+    }
+    const N = A - Z;
+    if (A > 400 || N > 2 * Z + 20) {
+      return { error: `Massagetal ${A} is onrealistisch groot voor ${name}: dat zou ${N} neutronen naast ${Z} protonen betekenen.` };
+    }
+    const electrons = Z - charge;
+    if (electrons < 0) {
+      return { error: `Een lading van ${chargeText(charge)} is onmogelijk: ${name} heeft maar ${Z} elektron${Z > 1 ? 'en' : ''} om af te staan.` };
+    }
+    if (charge < -8) {
+      return { error: `Een lading van ${chargeText(charge)} is onrealistisch: een negatief ion neemt hoogstens enkele extra elektronen op.` };
+    }
+    const isotope = el.isotopes.find((i) => i.A === A) || null;
+    const warnings = [];
+    if (!isotope) warnings.push(`Onbekende/hypothetische isotoop: ${el.symbol}-${A} staat niet in de dataset. Het model wordt toch getoond, maar stabiliteit en halfwaardetijd zijn onbekend.`);
+    const config = ionConfig(Z, electrons);
+    return {
+      atom: {
+        el, Z, A, N, charge, electrons, isotope, isStandard, warnings, config,
+        shells: shellCounts(config),
+        category: CATEGORIES[el.category],
+        query: `${el.symbol}-${A}${charge ? ' ' + ionSuffix(charge) : ''}`,
+      },
+    };
+  }
+
+  function resolve(raw) {
+    const s = normalizeInput(raw || '');
+    if (!s) return { error: 'Geef een element, isotoop of atoomnummer in.' };
+    // Mogelijke lezingen van een lading achteraan: "Fe3+", "O2-", "Na+", "Ca++", "Fe+3"
+    const candidates = [];
+    let m;
+    if ((m = /^(.*?)\s*(\d+)\s*([+-])$/.exec(s))) candidates.push([m[1], (m[3] === '-' ? -1 : 1) * +m[2]]);
+    if ((m = /^(.*?)\s*(\++|-+)$/.exec(s))) candidates.push([m[1], (m[2][0] === '-' ? -1 : 1) * m[2].length]);
+    if ((m = /^(.*?)\s*\+\s*(\d+)$/.exec(s))) candidates.push([m[1], +m[2]]);
+    candidates.push([s, 0]);
+
+    let best = null;
+    for (const [base, charge] of candidates) {
+      if (!base.trim()) continue;
+      const r = parseBase(base.trim());
+      if (r.el) return build(r.el, r.A, charge);
+      if (!best || r.rank > best.rank) best = r;
+    }
+    if (best && best.kind === 'unknown') {
+      const sug = suggestions(best.token);
+      return { error: `Onbekend element „${best.token}”.`, suggestions: sug, token: best.token };
+    }
+    if (best && best.error) return { error: best.error };
+    return { error: `„${s}” kan ik niet lezen. Probeer een symbool (Fe), een naam (ijzer, iron), een atoomnummer (26), een isotoop (C-14, ¹⁴C) of een ion (Na+, O2-).` };
+  }
+
+  // ---------- Kernpakking ----------
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Bollen met straal 1: ze stoten elkaar af bij overlap en worden naar het centrum getrokken.
+  // Daarna worden protonen/neutronen per schilletje (op afstand tot het centrum) gelijkmatig verdeeld.
+  function packNucleus(P, Nn, seed) {
+    const n = P + Nn;
+    const rnd = mulberry32(seed >>> 0);
+    const x = new Float64Array(n), y = new Float64Array(n), z = new Float64Array(n);
+    const R0 = Math.cbrt(n / 0.6);
+    for (let i = 0; i < n; i++) {
+      let a, b, c;
+      do { a = rnd() * 2 - 1; b = rnd() * 2 - 1; c = rnd() * 2 - 1; } while (a * a + b * b + c * c > 1);
+      x[i] = a * R0; y[i] = b * R0; z[i] = c * R0;
+    }
+    const ITER = 240, SETTLE = 80;
+    for (let it = 0; it < ITER + SETTLE; it++) {
+      if (it < ITER) {
+        const keep = 1 - (0.05 * (1 - it / ITER) + 0.008);
+        for (let i = 0; i < n; i++) { x[i] *= keep; y[i] *= keep; z[i] *= keep; }
+      }
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          let dx = x[i] - x[j], dy = y[i] - y[j], dz = z[i] - z[j];
+          const d2 = dx * dx + dy * dy + dz * dz;
+          if (d2 >= 4) continue;
+          let d = Math.sqrt(d2);
+          if (d < 1e-6) { dx = rnd() - 0.5; dy = rnd() - 0.5; dz = rnd() - 0.5; d = Math.hypot(dx, dy, dz); }
+          const push = (2 - d) * 0.5 / d;
+          x[i] += dx * push; y[i] += dy * push; z[i] += dz * push;
+          x[j] -= dx * push; y[j] -= dy * push; z[j] -= dz * push;
+        }
+      }
+    }
+    // centreren
+    let cx = 0, cy = 0, cz = 0;
+    for (let i = 0; i < n; i++) { cx += x[i]; cy += y[i]; cz += z[i]; }
+    cx /= n; cy /= n; cz /= n;
+    const positions = new Float32Array(n * 3);
+    const dist = new Float64Array(n);
+    let radius = 1;
+    for (let i = 0; i < n; i++) {
+      positions[3 * i] = x[i] - cx; positions[3 * i + 1] = y[i] - cy; positions[3 * i + 2] = z[i] - cz;
+      dist[i] = Math.hypot(positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]);
+      radius = Math.max(radius, dist[i] + 1);
+    }
+    // gelijkmatig mengen: van binnen naar buiten, met wat ruis, telkens de juiste p/n-verhouding
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => dist[a] + rnd() * 0.8 - (dist[b] + rnd() * 0.8));
+    const types = new Uint8Array(n); // 1 = proton, 0 = neutron
+    let placed = 0;
+    order.forEach((idx, k) => {
+      if (Math.round(((k + 1) * P) / n) > placed) { types[idx] = 1; placed++; }
+    });
+    return { count: n, positions, types, radius };
+  }
+
+  window.AtomCore = {
+    ELEMENTS, CATEGORIES, EXCEPTIONS, resolve, suggestions, configString, shellCounts, subshellList, ionConfig, neutralConfig,
+    formatHalfLife, packNucleus, toSup, toSub, cap, chargeText, ionSuffix, countElectrons,
+  };
+})();
+</script>
+
+<!-- ===================== Interface (invoer + infopaneel) ===================== -->
+<script>
+(function () {
+  'use strict';
+  const C = window.AtomCore;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const EXAMPLES = ['H', 'He', 'C-14', 'O', 'Fe', 'Au', 'U-235', 'U-238', 'Na+', 'Cl-'];
+  const SHELL_NAMES = 'KLMNOPQR';
+
+  function nuclideHTML(a) {
+    const q = C.ionSuffix(a.charge).replace('-', '−');
+    return `<span class="nuclide" aria-label="${esc(nuclidePlain(a))}"><span class="idx"><span>${a.A}</span><span>${a.Z}</span></span><span class="sym">${a.el.symbol}</span>${q ? `<span class="q">${q}</span>` : ''}</span>`;
+  }
+  const nuclidePlain = (a) => C.toSup(a.A) + C.toSub(a.Z) + a.el.symbol + (a.charge ? C.toSup(C.ionSuffix(a.charge)) : '');
+
+  function stability(a) {
+    const el = a.el;
+    const hasStable = el.isotopes.some((i) => i.stable);
+    if (!a.isotope) return { cls: 'unknown', label: 'onbekend', text: 'Deze isotoop staat niet in de dataset.' };
+    if (a.isotope.stable) return { cls: 'stable', label: 'stabiel', text: 'Er is geen radioactief verval waargenomen.' };
+    const h = a.isotope.halfLife;
+    let text = `Halfwaardetijd: <strong>${C.formatHalfLife(h)}</strong>`;
+    if (h.years > 1e15) text += ' — zo lang dat deze isotoop in de praktijk stabiel is.';
+    if (!hasStable) text += `<br>${C.cap(el.nl)} heeft geen enkele stabiele isotoop.`;
+    return { cls: 'radio', label: 'radioactief', text };
+  }
+
+  function standardText(a) {
+    const el = a.el;
+    const std = el.isotopes.find((i) => i.A === el.standardA);
+    const why = std.stable ? 'de meest voorkomende stabiele isotoop' : 'de isotoop met de langste halfwaardetijd';
+    return a.isStandard
+      ? `Geen massagetal opgegeven: standaardisotoop ${el.symbol}-${el.standardA} (${why}).`
+      : `Standaardisotoop van ${C.cap(el.nl)}: ${el.symbol}-${el.standardA} (${why}).`;
+  }
+
+  function renderPanel(a) {
+    const el = a.el;
+    document.documentElement.style.setProperty('--accent', a.category.color);
+    const st = stability(a);
+    const q = a.charge;
+    const chargeLabel = q === 0 ? 'neutraal atoom' : q > 0 ? 'positief ion (kation)' : 'negatief ion (anion)';
+    const short = C.configString(a.config);
+    const full = C.configString(a.config, { short: false });
+    const shells = a.shells.map((c, i) => `<span><b>${SHELL_NAMES[i]}</b>${c}</span>`).join('');
+    const isoButtons = el.isotopes.map((i) => {
+      const title = i.stable ? 'stabiel' : 'radioactief, t½ = ' + C.formatHalfLife(i.halfLife);
+      const star = i.A === el.standardA ? ' ★' : '';
+      return `<button type="button" data-q="${esc(el.symbol + '-' + i.A + (q ? ' ' + C.ionSuffix(q) : ''))}" class="${i.A === a.A ? 'active' : ''}" title="${esc(title)}"><span class="${i.stable ? 's' : 'r'}"></span>${el.symbol}-${i.A}${star}</button>`;
+    }).join('');
+
+    $('panel').innerHTML = `
+      <section class="card hero">
+        <div class="tile" aria-hidden="true">
+          <div class="tile-top"><span>${el.Z}</span><span>${el.standardA}</span></div>
+          <div class="tile-sym">${el.symbol}</div>
+          <div class="tile-name">${esc(C.cap(el.nl))}</div>
+        </div>
+        <div class="hero-text">
+          <h2>${esc(C.cap(el.nl))}<span class="en">${esc(C.cap(el.en))} · symbool ${el.symbol} · Z = ${el.Z}</span></h2>
+          <div class="hero-row">${nuclideHTML(a)}<span class="chip">${esc(a.category.nl)}</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Deeltjes</h3>
+        <div class="stats">
+          <div class="stat"><div class="k"><span class="dot p"></span>Protonen</div><div class="v">${a.Z}</div></div>
+          <div class="stat"><div class="k"><span class="dot n"></span>Neutronen</div><div class="v">${a.N}</div></div>
+          <div class="stat"><div class="k"><span class="dot e"></span>Elektronen</div><div class="v">${a.electrons}</div></div>
+          <div class="stat"><div class="k"><span class="dot a"></span>Massagetal A</div><div class="v">${a.A}</div></div>
+        </div>
+        <div class="row" style="margin-top:8px"><span class="k">Lading</span><span class="v"><strong>${C.chargeText(q)}</strong> · ${chargeLabel}</span></div>
+        <div class="row"><span class="k">Isotoop</span><span class="v">${el.symbol}-${a.A} · ${esc(nuclidePlain(a))}</span></div>
+      </section>
+
+      <section class="card">
+        <h3>Elektronen</h3>
+        <div class="config-main mono">${short}</div>
+        ${full !== short ? `<div class="config-full mono">${full}</div>` : ''}
+        ${C.EXCEPTIONS[el.Z] && q === 0 ? `<p class="note">Uitzondering op de opvulvolgorde: deze configuratie is energetisch gunstiger.</p>` : ''}
+        ${a.electrons === 0 ? `<p class="note">Kaal ion: er zijn geen elektronen meer over.</p>` : `
+        <div class="row" style="margin-top:6px"><span class="k">Verdeling per schil</span><span class="v mono">${a.shells.join(', ')}</span></div>
+        <div class="shells">${shells}</div>`}
+      </section>
+
+      ${a.electrons === 0 ? '' : `
+      <section class="card">
+        <h3>Subschillen (Sommerfeld)</h3>
+        <table class="subtable">
+          <thead><tr><th>Subschil</th><th>n</th><th>k</th><th>e⁻</th><th>Baan</th></tr></thead>
+          <tbody>${C.subshellList(a.config).map((s) => `
+            <tr><td><span class="sub-tag l${s.l}">${s.key}</span></td><td>${s.n}</td><td>${s.k}</td><td>${s.count}</td>
+            <td>${s.k === s.n ? 'cirkel' : `ellips, e = ${s.ecc.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <p class="note">In het model van Sommerfeld (1916) heeft schil n banen met nevenkwantumgetal k = 1 … n (k = l + 1 voor s, p, d, f).
+          Alle banen van één schil hebben dezelfde lange as. Hoe kleiner k/n, hoe langgerekter de ellips, met de kern in een brandpunt.
+          Kies <strong>Sommerfeld</strong> onder de 3D-weergave om de banen te zien.</p>
+      </section>`}
+
+      <section class="card">
+        <h3>Kern</h3>
+        <span class="badge ${st.cls}">${st.label}</span>
+        <p class="note">${st.text}</p>
+        ${a.warnings.map((w) => `<div class="warnbox">${esc(w)}</div>`).join('')}
+        <p class="note">${esc(standardText(a))}</p>
+      </section>
+
+      <section class="card">
+        <h3>Isotopen van ${esc(el.nl)}</h3>
+        <div class="iso-list" id="iso-list">${isoButtons}</div>
+        <p class="note"><span style="color:var(--ok)">●</span> stabiel · <span style="color:var(--warn)">●</span> radioactief · ★ standaardisotoop</p>
+      </section>
+
+      <section class="card">
+        <h3>Legende</h3>
+        <div class="legend">
+          <div><span class="dot p"></span>Proton (p⁺)</div>
+          <div><span class="dot n"></span>Neutron (n⁰)</div>
+          <div><span class="dot e"></span>Elektron (e⁻)</div>
+          <div><span class="ring-swatch"></span>Elektronenschil</div>
+        </div>
+        <p class="note" style="margin-top:8px">Sommerfeld-banen: <span class="sub-tag l0">s</span> <span class="sub-tag l1">p</span> <span class="sub-tag l2">d</span> <span class="sub-tag l3">f</span></p>
+      </section>
+
+      <section class="card scale-card">
+        <strong>Niet op schaal.</strong> In werkelijkheid is de kern ongeveer 100.000 keer kleiner dan het atoom:
+        als de kern een knikker was, dan zou het atoom zo groot zijn als een voetbalstadion. Elektronen draaien ook niet
+        in nette banen; het bohr- en het sommerfeldmodel zijn vereenvoudigingen. In de 3D-weergave zijn de meest langgerekte
+        sommerfeldbanen wat afgevlakt, zodat ze niet door de (sterk vergrote) kern lopen.
+      </section>`;
+
+    $('caption').innerHTML = nuclideHTML(a);
+    $('caption').title = `${C.cap(el.nl)} (${el.symbol}-${a.A})`;
+    document.title = `${el.symbol}-${a.A}${q ? ' ' + C.ionSuffix(q) : ''} · Atoommodel 3D`;
+  }
+
+  function showMessage(kind, html) {
+    const box = $('msg');
+    box.className = 'msg ' + kind;
+    box.innerHTML = html;
+    box.hidden = false;
+  }
+  const hideMessage = () => { $('msg').hidden = true; };
+
+  const App = {
+    current: null,
+    show(query) {
+      const res = C.resolve(query);
+      if (res.error) {
+        let html = esc(res.error);
+        if (res.suggestions && res.suggestions.length) {
+          html += ' Bedoelde je: ' + res.suggestions.map((s) => `<button type="button" class="suggest" data-q="${s}">${s}</button>`).join(', ') + '?';
+        } else if (res.token) {
+          html += ' Probeer een symbool (Fe), een naam (ijzer of iron) of een atoomnummer (26).';
+        }
+        showMessage('error', html);
+        return false;
+      }
+      const a = res.atom;
+      App.current = a;
+      if (a.warnings.length) showMessage('warn', esc(a.warnings[0])); else hideMessage();
+      renderPanel(a);
+      if (window.AtomViewer) window.AtomViewer.load(a);
+      try { history.replaceState(null, '', '#' + encodeURIComponent(String(query).trim())); } catch (e) { /* file:// kan dit weigeren */ }
+      return true;
+    },
+  };
+  window.App = App;
+
+  const input = $('q');
+  const go = (q) => { input.value = q; App.show(q); };
+  $('search').addEventListener('submit', (e) => { e.preventDefault(); App.show(input.value); });
+  for (const ex of EXAMPLES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = ex;
+    b.addEventListener('click', () => go(ex));
+    $('examples').appendChild(b);
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.suggest, #iso-list button');
+    if (b) go(b.dataset.q);
+  });
+
+  let initial = 'C';
+  try { initial = decodeURIComponent(location.hash.slice(1)) || 'C'; } catch (e) { /* ongeldige hash */ }
+  input.value = initial;
+  if (!App.show(initial)) App.show('C');
+
+  // Als Three.js niet laadt (geen internet), een duidelijke melding tonen.
+  setTimeout(() => {
+    if (!window.AtomViewer) $('viewer-msg').textContent = 'De 3D-weergave kon niet geladen worden. Three.js wordt via een CDN opgehaald: controleer je internetverbinding en herlaad de pagina.';
+  }, 8000);
+})();
+</script>
+
+<!-- ===================== 3D-weergave (Three.js) ===================== -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+const $ = (id) => document.getElementById(id);
+const host = $('canvas-host');
+const viewerMsg = $('viewer-msg');
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+} catch (err) {
+  viewerMsg.textContent = 'WebGL is niet beschikbaar in deze browser, daardoor kan het 3D-model niet getoond worden.';
+  throw err;
+}
+viewerMsg.hidden = true;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setClearColor(0x000000, 0);
+host.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.domElement.className = 'label-layer';
+host.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 9000);
+scene.add(camera);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.screenSpacePanning = true;
+controls.autoRotateSpeed = 1.6;
+controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// ---------- Licht ----------
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x1a1030, 0.8));
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.3);
+keyLight.position.set(4, 6, 5);
+camera.add(keyLight); // licht beweegt mee met de camera: de kern blijft altijd mooi belicht
+const rimLight = new THREE.DirectionalLight(0x8fb0ff, 0.9);
+rimLight.position.set(-6, -4, -8);
+scene.add(rimLight);
+
+// ---------- Sterren ----------
+{
+  const n = 2400, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, r = 1800 + Math.random() * 2600, s = Math.sqrt(1 - u * u);
+    pos.set([r * s * Math.cos(th), r * u, r * s * Math.sin(th)], i * 3);
+    c.setHSL(0.55 + Math.random() * 0.12, 0.35, 0.55 + Math.random() * 0.4);
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 1.6, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.7, depthWrite: false })));
+}
+
+function glowTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const g = cv.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.18, 'rgba(170,245,255,0.95)');
+  grd.addColorStop(0.45, 'rgba(70,200,255,0.28)');
+  grd.addColorStop(1, 'rgba(0,120,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// ---------- Atoom ----------
+const atomGroup = new THREE.Group();
+scene.add(atomGroup);
+const nucleusGroup = new THREE.Group();
+atomGroup.add(nucleusGroup);
+
+const nucleonGeo = new THREE.SphereGeometry(1, 22, 16);
+const protonMat = new THREE.MeshStandardMaterial({ color: 0xe5484d, roughness: 0.42, metalness: 0.05, emissive: 0x2a0406 });
+const neutronMat = new THREE.MeshStandardMaterial({ color: 0xa3adc2, roughness: 0.5, metalness: 0.05, emissive: 0x0b0d12 });
+let protonMesh = null, neutronMesh = null;
+
+const nucLabelEl = document.createElement('div');
+nucLabelEl.className = 'nuc-label';
+const nucLabel = new CSS2DObject(nucLabelEl);
+nucLabel.center.set(0.5, 1);
+atomGroup.add(nucLabel);
+
+const MAX_E = 160;
+const ePos = new Float32Array(MAX_E * 3);
+const eGeo = new THREE.BufferGeometry();
+eGeo.setAttribute('position', new THREE.BufferAttribute(ePos, 3).setUsage(THREE.DynamicDrawUsage));
+const eGlow = new THREE.Points(eGeo, new THREE.PointsMaterial({
+  map: glowTexture(), color: 0x5fdcff, size: 1.5, sizeAttenuation: true,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+}));
+eGlow.frustumCulled = false;
+eGlow.renderOrder = 2;
+atomGroup.add(eGlow);
+const eCore = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xa8f0ff }), MAX_E);
+eCore.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+eCore.frustumCulled = false;
+eCore.count = 0;
+atomGroup.add(eCore);
+
+const circleGeo = new THREE.BufferGeometry().setFromPoints(
+  Array.from({ length: 256 }, (_, i) => { const a = (i / 256) * Math.PI * 2; return new THREE.Vector3(Math.cos(a), 0, Math.sin(a)); }),
+);
+const SHELL_NAMES = 'KLMNOPQR';
+const SHELL_COLORS = [0x6fd3ff, 0x74b9ff, 0x8c9dff, 0xa78bfa, 0xc084fc, 0xe879f9, 0xf472b6, 0xfb7185];
+// [helling t.o.v. het horizontale vlak, draaiing rond de verticale as] per schil
+const SHELL_TILTS = [[0.28, 0.1], [1.12, 0.6], [0.66, -1.0], [1.42, 1.4], [0.22, 2.25], [0.98, -2.3], [1.3, 2.85], [0.52, -1.6]];
+const SUB_COLORS = [0x6fd3ff, 0x8ce99a, 0xffd166, 0xf783ac]; // s, p, d, f
+const NUCLEON_R = { normal: 0.5, enlarged: 1.35 };
+const DEFAULT_DIR = new THREE.Vector3(0.32, 0.42, 1).normalize();
+
+const state = {
+  atom: null,
+  orbits: [],
+  model: 'bohr',
+  nucleusUnits: 1,
+  nucleonR: 0.01,
+  nucleonRTarget: NUCLEON_R.normal,
+  eSize: 0.2,
+  eSizeTarget: 0.2,
+  fitRadius: 5,
+  eTime: 0,
+  speed: 1,
+  paused: false,
+  showShells: true,
+  tween: null,
+};
+
+function buildNucleus(a) {
+  for (const m of [protonMesh, neutronMesh]) if (m) { nucleusGroup.remove(m); m.dispose(); }
+  protonMesh = neutronMesh = null;
+  const pack = window.AtomCore.packNucleus(a.Z, a.N, a.Z * 7919 + a.A * 104729);
+  const m4 = new THREE.Matrix4();
+  protonMesh = new THREE.InstancedMesh(nucleonGeo, protonMat, a.Z);
+  if (a.N > 0) neutronMesh = new THREE.InstancedMesh(nucleonGeo, neutronMat, a.N);
+  let ip = 0, inn = 0;
+  for (let i = 0; i < pack.count; i++) {
+    m4.makeTranslation(pack.positions[3 * i], pack.positions[3 * i + 1], pack.positions[3 * i + 2]);
+    if (pack.types[i] === 1) protonMesh.setMatrixAt(ip++, m4);
+    else neutronMesh.setMatrixAt(inn++, m4);
+  }
+  for (const m of [protonMesh, neutronMesh]) {
+    if (!m) continue;
+    m.instanceMatrix.needsUpdate = true;
+    m.frustumCulled = false;
+    nucleusGroup.add(m);
+  }
+  state.nucleusUnits = pack.radius;
+  nucLabelEl.innerHTML = `<span><span class="p">${a.Z} p⁺</span> · <span class="n">${a.N} n⁰</span></span>`;
+}
+
+// Eén baan = een cirkel (Bohr, per schil) of een ellips met de kern in een brandpunt (Sommerfeld, per subschil).
+// Parameters: lange halve as a en excentriciteit ecc; korte halve as b = a·√(1 − ecc²).
+const _qShell = new THREE.Quaternion(), _qSpin = new THREE.Quaternion(), _qTilt = new THREE.Quaternion();
+const _Y = new THREE.Vector3(0, 1, 0), _X = new THREE.Vector3(1, 0, 0);
+
+function orbitDefs(a) {
+  if (state.model === 'bohr') {
+    return a.shells.map((count, i) => ({ key: SHELL_NAMES[i], n: i + 1, l: null, count, ecc: 0, name: SHELL_NAMES[i], color: SHELL_COLORS[i % SHELL_COLORS.length] }));
+  }
+  return window.AtomCore.subshellList(a.config).map((s) => ({ ...s, name: s.key, color: SUB_COLORS[s.l] }));
+}
+
+function buildOrbits(a) {
+  const prev = new Map(state.orbits.map((o) => [o.key, o]));
+  const prevA = new Map();
+  for (const o of state.orbits) if (!prevA.has(o.n)) prevA.set(o.n, o.a);
+  for (const o of state.orbits) {
+    o.group.remove(o.label);
+    o.label.element.remove();
+    atomGroup.remove(o.group);
+    o.ring.material.dispose();
+  }
+  state.orbits = orbitDefs(a).map((d) => {
+    const [tilt, yaw] = SHELL_TILTS[(d.n - 1) % SHELL_TILTS.length];
+    const group = new THREE.Group();
+    _qShell.setFromEuler(new THREE.Euler(tilt, yaw, 0, 'YXZ'));
+    if (d.l === null) group.quaternion.copy(_qShell);
+    else {
+      // subschillen van één schil vormen een rozet: lange as gespreid in het vlak, plus een kleine eigen helling
+      _qSpin.setFromAxisAngle(_Y, (d.l * Math.PI * 2) / d.n + d.n * 0.7);
+      _qTilt.setFromAxisAngle(_X, d.l * 0.32);
+      group.quaternion.copy(_qShell).multiply(_qTilt).multiply(_qSpin);
+    }
+    const color = new THREE.Color(d.color);
+    const ring = new THREE.LineLoop(circleGeo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45, depthWrite: false }));
+    ring.visible = state.showShells;
+    group.add(ring);
+    const el = document.createElement('div');
+    el.className = 'shell-label';
+    el.innerHTML = `<span style="--c:#${color.getHexString()}"><b>${d.name}</b>${d.count} e⁻</span>`;
+    const label = new CSS2DObject(el);
+    label.center.set(0, 0.5);
+    group.add(label);
+    atomGroup.add(group);
+    const old = prev.get(d.key);
+    return {
+      ...d, group, ring, label,
+      a: old ? old.a : prevA.get(d.n) ?? 0.01, aT: 1,
+      ecc: old ? old.ecc : 0, eccT: 0, eccTrue: d.ecc,
+      speed: 1.3 / Math.pow(d.n, 0.85), // Kepler: zelfde lange as → zelfde omlooptijd
+      phase: d.n * 0.9 + (d.l ?? 0) * 1.7,
+      labelE: d.l === null ? -0.5 - (d.n - 1) * 0.42 : 2.3,
+    };
+  });
+  eCore.count = a.electrons;
+  eGeo.setDrawRange(0, a.electrons);
+}
+
+function layoutTargets() {
+  const nR = state.nucleusUnits * state.nucleonRTarget;
+  let fit = nR + 1.5;
+  for (const o of state.orbits) {
+    o.aT = nR + 2.4 + (o.n - 1) * 2.7;
+    // de periheliumafstand a(1 − e) blijft buiten de (vergrote) kern
+    o.eccT = Math.max(0, Math.min(o.eccTrue, 1 - (nR + 0.8) / o.aT));
+    fit = Math.max(fit, o.aT * (1 + o.eccT) + 1);
+  }
+  state.fitRadius = fit;
+  state.eSizeTarget = 0.15 + 0.008 * Math.min(fit, 32);
+}
+
+function setModel(model) {
+  if (model === state.model) return;
+  state.model = model;
+  for (const b of document.querySelectorAll('[data-model]')) setPressed(b, b.dataset.model === model);
+  try { localStorage.setItem('atoommodel-model', model); } catch (e) { /* geen opslag beschikbaar */ }
+  if (!state.atom) return;
+  buildOrbits(state.atom);
+  layoutTargets();
+  fitCamera();
+}
+
+function fitDistance(radius) {
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  return (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 1.06;
+}
+
+function fitCamera({ resetDir = false, instant = false } = {}) {
+  const dist = fitDistance(state.fitRadius);
+  let dir = camera.position.clone().sub(controls.target);
+  if (resetDir || dir.lengthSq() < 1e-8) dir = DEFAULT_DIR.clone();
+  dir.normalize();
+  controls.minDistance = 0.8;
+  controls.maxDistance = Math.max(dist * 6, 60);
+  if (instant) {
+    controls.target.set(0, 0, 0);
+    camera.position.copy(dir.multiplyScalar(dist));
+    controls.update();
+    state.tween = null;
+    return;
+  }
+  const fromDir = camera.position.clone().sub(controls.target);
+  state.tween = {
+    t: 0, dur: 0.9,
+    fromTarget: controls.target.clone(),
+    fromDir: fromDir.clone().normalize(), fromDist: fromDir.length(),
+    toDir: dir, toDist: dist,
+  };
+}
+controls.addEventListener('start', () => { state.tween = null; });
+
+function stepTween(dt) {
+  const tw = state.tween;
+  if (!tw) return;
+  tw.t = Math.min(1, tw.t + dt / tw.dur);
+  const e = tw.t < 0.5 ? 4 * tw.t ** 3 : 1 - (-2 * tw.t + 2) ** 3 / 2;
+  const dir = tw.fromDir.clone().lerp(tw.toDir, e);
+  if (dir.lengthSq() < 1e-6) dir.copy(tw.toDir);
+  dir.normalize();
+  controls.target.copy(tw.fromTarget).multiplyScalar(1 - e);
+  camera.position.copy(controls.target).addScaledVector(dir, tw.fromDist + (tw.toDist - tw.fromDist) * e);
+  if (tw.t >= 1) state.tween = null;
+}
+
+function load(a) {
+  const first = !state.atom;
+  state.atom = a;
+  buildNucleus(a);
+  buildOrbits(a);
+  state.nucleonR = 0.01; // kern "ploft" open
+  layoutTargets();
+  fitCamera({ resetDir: first, instant: first });
+}
+
+// ---------- Animatie ----------
+const tmpV = new THREE.Vector3();
+const tmpM = new THREE.Matrix4();
+// Positie op de baan bij excentrische anomalie E (brandpunt = kern in de oorsprong)
+const orbitPoint = (o, E, out) => out.set(o.a * (Math.cos(E) - o.ecc), 0, o.a * Math.sqrt(1 - o.ecc * o.ecc) * Math.sin(E));
+
+// Keplervergelijking M = E − e·sin E (Newton): elektronen gaan sneller dicht bij de kern
+function eccentricAnomaly(M, e) {
+  M %= Math.PI * 2;
+  let E = e < 0.8 ? M : Math.PI;
+  for (let i = 0; i < 8; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  return E;
+}
+
+function updateElectrons() {
+  let i = 0;
+  const e = state.eSize;
+  for (const o of state.orbits) {
+    const q = o.group.quaternion;
+    for (let j = 0; j < o.count; j++) {
+      const M = o.phase + state.eTime * o.speed + (j * Math.PI * 2) / o.count;
+      orbitPoint(o, o.ecc > 1e-4 ? eccentricAnomaly(M, o.ecc) : M, tmpV).applyQuaternion(q);
+      ePos[3 * i] = tmpV.x; ePos[3 * i + 1] = tmpV.y; ePos[3 * i + 2] = tmpV.z;
+      tmpM.makeScale(e, e, e).setPosition(tmpV);
+      eCore.setMatrixAt(i, tmpM);
+      i++;
+    }
+  }
+  eGeo.attributes.position.needsUpdate = true;
+  eCore.instanceMatrix.needsUpdate = true;
+  eGlow.material.size = e * 6;
+}
+
+let last = performance.now(), fpsFrames = 0, fpsTime = 0;
+const fpsEl = $('fps');
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  const k = 1 - Math.exp(-dt * 7);
+
+  state.nucleonR += (state.nucleonRTarget - state.nucleonR) * k;
+  nucleusGroup.scale.setScalar(state.nucleonR);
+  nucLabel.position.set(0, state.nucleusUnits * state.nucleonR + 0.25, 0);
+  state.eSize += (state.eSizeTarget - state.eSize) * k;
+  for (const o of state.orbits) {
+    o.a += (o.aT - o.a) * k;
+    o.ecc += (o.eccT - o.ecc) * k;
+    o.ring.scale.set(o.a, 1, o.a * Math.sqrt(1 - o.ecc * o.ecc));
+    o.ring.position.x = -o.a * o.ecc;
+    orbitPoint(o, o.labelE, o.label.position);
+  }
+  if (!state.paused) state.eTime += dt * state.speed;
+  updateElectrons();
+
+  stepTween(dt);
+  controls.update(dt);
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+
+  fpsFrames++;
+  fpsTime += dt;
+  if (fpsTime >= 0.5) {
+    fpsEl.textContent = `${Math.round(fpsFrames / fpsTime)} fps`;
+    fpsFrames = 0;
+    fpsTime = 0;
+  }
+}
+
+function resize() {
+  const w = host.clientWidth, h = host.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(host);
+resize();
+
+// ---------- Bediening ----------
+function setPressed(btn, on) { btn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+
+$('btn-reset').addEventListener('click', () => fitCamera({ resetDir: true }));
+$('btn-rotate').addEventListener('click', (e) => {
+  controls.autoRotate = !controls.autoRotate;
+  setPressed(e.currentTarget, controls.autoRotate);
+});
+$('btn-pause').addEventListener('click', (e) => {
+  state.paused = !state.paused;
+  setPressed(e.currentTarget, state.paused);
+  e.currentTarget.textContent = state.paused ? 'Hervat elektronen' : 'Pauzeer elektronen';
+});
+$('tgl-shells').addEventListener('change', (e) => {
+  state.showShells = e.target.checked;
+  for (const o of state.orbits) o.ring.visible = state.showShells;
+  labelRenderer.domElement.classList.toggle('no-shells', !state.showShells);
+});
+$('tgl-labels').addEventListener('change', (e) => {
+  labelRenderer.domElement.style.display = e.target.checked ? '' : 'none';
+});
+$('tgl-enlarge').addEventListener('change', (e) => {
+  state.nucleonRTarget = e.target.checked ? NUCLEON_R.enlarged : NUCLEON_R.normal;
+  layoutTargets();
+  fitCamera();
+});
+$('speed').addEventListener('input', (e) => {
+  state.speed = +e.target.value;
+  $('speed-out').textContent = state.speed.toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '×';
+});
+for (const b of document.querySelectorAll('[data-model]')) {
+  b.addEventListener('click', () => setModel(b.dataset.model));
+  b.disabled = false;
+}
+try { if (localStorage.getItem('atoommodel-model') === 'sommerfeld') setModel('sommerfeld'); } catch (e) { /* geen opslag beschikbaar */ }
+for (const id of ['btn-reset', 'btn-rotate', 'btn-pause', 'tgl-shells', 'tgl-labels', 'tgl-enlarge', 'speed']) $(id).disabled = false;
+
+window.AtomViewer = { load };
+if (window.App && window.App.current) load(window.App.current);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
