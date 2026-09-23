@@ -149,6 +149,21 @@
   }
   .nuc-label .p { color: #ff8a8d; }
   .nuc-label .n { color: #c9d1e2; }
+  .atom-label .al {
+    display: inline-block; margin-bottom: 4px; padding: 1px 8px; border-radius: 999px;
+    font-size: 13px; white-space: nowrap; background: rgba(8, 12, 26, .75); border: 1px solid #3a4466;
+  }
+  .atom-label i { font-style: normal; font-weight: 650; }
+  .atom-label .ion { font-size: .78em; vertical-align: super; margin-left: 1px; }
+  .atom-label .dq { display: none; margin-left: 6px; }
+  .label-layer.show-charges .atom-label .dq { display: inline; }
+  .atom-label .pos { color: #7fa8ff; }
+  .atom-label .neg { color: #ff7b88; }
+  .bond-label span {
+    display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; white-space: nowrap;
+    color: #e7ecf6; background: rgba(8, 12, 26, .75); border: 1px solid var(--c);
+  }
+  .dipole-label span { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; color: #ffd166; background: rgba(8, 12, 26, .75); border: 1px solid #ffd166; }
 
   .ov { position: absolute; display: flex; gap: 6px; pointer-events: none; z-index: 2; }
   .ov > * { pointer-events: auto; }
@@ -255,6 +270,26 @@
   .dot.n { background: var(--neutron); }
   .dot.e { background: var(--electron); box-shadow: 0 0 6px var(--electron); }
   .dot.a { background: linear-gradient(90deg, var(--proton) 50%, var(--neutron) 50%); }
+  .dot.t { background: #ffb938; box-shadow: 0 0 6px #ffb938; }
+  .dot.plus { background: #3d7dff; box-shadow: 0 0 8px #3d7dff; }
+  .dot.minus { background: #ff3d52; box-shadow: 0 0 8px #ff3d52; }
+  .line-swatch { width: 18px; height: 0; border-top: 2px solid var(--c); flex: none; }
+  .line-swatch.dashed { border-top-style: dashed; }
+  .formula { font-size: 30px; font-weight: 700; letter-spacing: .3px; line-height: 1.1; }
+  .formula sub { font-size: .55em; }
+  .bond-row { padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+  .bond-row:first-of-type { border-top: 0; padding-top: 0; }
+  .bond-row .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .bond-row .pair { font-weight: 650; font-size: 15px; }
+  .btype { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; border: 1px solid var(--c); color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); white-space: nowrap; }
+  .btype.apolair { --c: #d6deef; } .btype.polair { --c: #ffb454; } .btype.ion { --c: #ff6b9a; } .btype.metaal { --c: #b0b8c8; }
+  .charge-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+  .charge-list span { padding: 2px 9px; border-radius: 8px; background: var(--surface-2); font-size: 13.5px; }
+  .charge-list .pos { color: #7fa8ff; font-weight: 650; }
+  .charge-list .neg { color: #ff7b88; font-weight: 650; }
+  .el-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .el-list button { padding: 3px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); font-size: 13px; }
+  .el-list button:hover { border-color: var(--accent); }
   .row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
   .row:first-of-type { border-top: 0; }
   .row .k { color: var(--muted); flex: none; }
@@ -318,11 +353,12 @@
     </div>
   </div>
   <form class="search" id="search" autocomplete="off">
-    <input id="q" type="text" placeholder="Element of isotoop, bv. C-14, ijzer, U-235, Na+" aria-label="Element of isotoop" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="go">
+    <input id="q" type="text" placeholder="Element, isotoop of molecuul, bv. C-14, ijzer, Na+, H2O, NaCl" aria-label="Element, isotoop of molecuul" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="go">
     <button type="submit" class="primary">Toon</button>
   </form>
   <div class="sub-row">
-    <div class="examples" id="examples"><span>Voorbeelden:</span></div>
+    <div class="examples" id="examples"><span>Atomen:</span></div>
+    <div class="examples" id="mol-examples"><span>Moleculen:</span></div>
   </div>
   <div id="msg" class="msg" role="status" aria-live="polite" hidden></div>
 </header>
@@ -349,6 +385,7 @@
         <label class="switch"><input type="checkbox" id="tgl-shells" checked disabled>Schillen</label>
         <label class="switch"><input type="checkbox" id="tgl-labels" checked disabled>Labels</label>
         <label class="switch"><input type="checkbox" id="tgl-enlarge" disabled>Kern vergroten</label>
+        <label class="switch" id="sw-charges" hidden><input type="checkbox" id="tgl-charges" disabled>Ladingen (δ+/δ−)</label>
         <label class="speed">Snelheid <input type="range" id="speed" min="0.1" max="3" step="0.1" value="1" disabled aria-label="Snelheid van de elektronen"><output id="speed-out">1,0×</output></label>
       </div>
       <div class="scale-note">Niet op schaal: in werkelijkheid is de kern ongeveer 100.000 keer kleiner dan het atoom.</div>
@@ -871,7 +908,382 @@
     return { count: n, positions, types, radius };
   }
 
+  // =====================================================================
+  // Moleculen
+  // =====================================================================
+
+  // Elektronegativiteit (Pauling) per Z; "-" = onbekend
+  const EN = [null, ...`2.20 - 0.98 1.57 2.04 2.55 3.04 3.44 3.98 - 0.93 1.31 1.61 1.90 2.19 2.58 3.16 - 0.82 1.00
+    1.36 1.54 1.63 1.66 1.55 1.83 1.88 1.91 1.90 1.65 1.81 2.01 2.18 2.55 2.96 3.00 0.82 0.95 1.22 1.33 1.6 2.16 1.9 2.2
+    2.28 2.20 1.93 1.69 1.78 1.96 2.05 2.1 2.66 2.6 0.79 0.89 1.10 1.12 1.13 1.14 1.13 1.17 1.2 1.2 1.1 1.22 1.23 1.24
+    1.25 1.1 1.27 1.3 1.5 2.36 1.9 2.2 2.20 2.28 2.54 2.00 1.62 2.33 2.02 2.0 2.2 2.2 0.79 0.9 1.1 1.3 1.5 1.38 1.36
+    1.28 1.13 1.28 1.3 1.3 1.3 1.3 1.3 1.3 1.3 - - - - - - - - - - - - - - -`.trim().split(/\s+/).map((x) => (x === '-' ? null : +x))];
+  ELEMENTS.slice(1).forEach((el) => { el.en_pauling = EN[el.Z]; });
+
+  const METAL_CATS = new Set(['am', 'aa', 'om', 'pm', 'la', 'ac']);
+  const isMetal = (el) => METAL_CATS.has(el.category);
+  const isMainGroup = (el) => !['om', 'la', 'ac', 'on'].includes(el.category);
+  const valenceOf = (el) => { const s = shellCounts(neutralConfig(el.Z)); return s[s.length - 1]; };
+  const needOf = (el) => (el.Z <= 2 ? 2 : 8) - valenceOf(el); // elektronen tekort tot edelgasconfiguratie
+  const capacityOf = (el) => (valenceOf(el) >= 4 ? needOf(el) : valenceOf(el)); // gebruikelijk aantal bindingen
+
+  const BOND_TYPES = {
+    apolair: { nl: 'apolaire atoombinding', short: 'apolair', en: 'apolair covalent' },
+    polair: { nl: 'polaire atoombinding', short: 'polair', en: 'polair covalent' },
+    ion: { nl: 'ionbinding', short: 'ionbinding', en: 'ionisch' },
+    metaal: { nl: 'metaalbinding', short: 'metaalbinding', en: 'metallisch' },
+  };
+  function classifyBond(a, b) {
+    const d = Math.abs(a.en_pauling - b.en_pauling);
+    if (isMetal(a) && isMetal(b)) return 'metaal';
+    if (isMetal(a) !== isMetal(b) && d > 1.7) return 'ion';
+    return d < 0.4 ? 'apolair' : 'polair';
+  }
+
+  // Moleculen met meer dan één centraal atoom (of formele ladingen): expliciete structuur.
+  // Bindingen: "i-j" enkel, "i=j" dubbel, "i#j" drievoudig.
+  const MOL_LIBRARY = [
+    { f: 'CO', nl: 'koolstofmonoxide', en: 'carbon monoxide', atoms: 'C O', bonds: '0#1', formal: '-1 1' },
+    { f: 'O3', nl: 'ozon', en: 'ozone', atoms: 'O O O', bonds: '0=1 0-2', formal: '1 0 -1' },
+    { f: 'H2O2', nl: 'waterstofperoxide', en: 'hydrogen peroxide', atoms: 'O O H H', bonds: '0-1 0-2 1-3' },
+    { f: 'N2H4', nl: 'hydrazine', en: 'hydrazine', atoms: 'N N H H H H', bonds: '0-1 0-2 0-3 1-4 1-5' },
+    { f: 'C2H6', nl: 'ethaan', en: 'ethane', atoms: 'C C H H H H H H', bonds: '0-1 0-2 0-3 0-4 1-5 1-6 1-7' },
+    { f: 'C2H4', nl: 'etheen', en: 'ethene', alias: ['ethyleen', 'ethylene'], atoms: 'C C H H H H', bonds: '0=1 0-2 0-3 1-4 1-5' },
+    { f: 'C2H2', nl: 'ethyn', en: 'ethyne', alias: ['acetyleen', 'acetylene'], atoms: 'C C H H', bonds: '0#1 0-2 1-3' },
+    { f: 'C3H8', nl: 'propaan', en: 'propane', atoms: 'C C C H H H H H H H H', bonds: '0-1 1-2 0-3 0-4 0-5 1-6 1-7 2-8 2-9 2-10' },
+    { f: 'CH3OH', nl: 'methanol', en: 'methanol', atoms: 'C O H H H H', bonds: '0-1 0-2 0-3 0-4 1-5' },
+    { f: 'C2H5OH', nl: 'ethanol', en: 'ethanol', alias: ['alcohol'], atoms: 'C C O H H H H H H', bonds: '0-1 1-2 0-3 0-4 0-5 1-6 1-7 2-8' },
+    { f: 'CH3COOH', nl: 'ethaanzuur', en: 'acetic acid', alias: ['azijnzuur'], atoms: 'C C O O H H H H', bonds: '0-1 1=2 1-3 3-7 0-4 0-5 0-6' },
+    { f: 'CO(NH2)2', nl: 'ureum', en: 'urea', atoms: 'C O N N H H H H', bonds: '0=1 0-2 0-3 2-4 2-5 3-6 3-7' },
+  ];
+  // Namen voor moleculen die automatisch opgebouwd worden: [formule, NL, EN, extra namen…]
+  const MOL_NAMED = [
+    ['H2O', 'water', 'water'], ['CH4', 'methaan', 'methane'], ['NH3', 'ammoniak', 'ammonia'],
+    ['CO2', 'koolstofdioxide', 'carbon dioxide', 'koolzuurgas'], ['H2', 'waterstofgas', 'hydrogen gas', 'diwaterstof'],
+    ['O2', 'zuurstofgas', 'oxygen gas', 'dizuurstof'], ['N2', 'stikstofgas', 'nitrogen gas', 'distikstof'],
+    ['F2', 'fluorgas', 'fluorine gas', 'difluor'], ['Cl2', 'chloorgas', 'chlorine gas', 'dichloor'],
+    ['Br2', 'dibroom', 'dibromine'], ['I2', 'dijood', 'diiodine'],
+    ['HF', 'waterstoffluoride', 'hydrogen fluoride'], ['HCl', 'waterstofchloride', 'hydrogen chloride'],
+    ['HBr', 'waterstofbromide', 'hydrogen bromide'], ['HI', 'waterstofjodide', 'hydrogen iodide'],
+    ['H2S', 'waterstofsulfide', 'hydrogen sulfide', 'zwavelwaterstof'], ['HCN', 'waterstofcyanide', 'hydrogen cyanide', 'blauwzuur'],
+    ['CH2O', 'methanal', 'formaldehyde'], ['CH3Cl', 'chloormethaan', 'chloromethane'],
+    ['CH2Cl2', 'dichloormethaan', 'dichloromethane'], ['CCl4', 'tetrachloormethaan', 'carbon tetrachloride', 'tetrachloromethane'],
+    ['SO2', 'zwaveldioxide', 'sulfur dioxide'], ['SO3', 'zwaveltrioxide', 'sulfur trioxide'],
+    ['BF3', 'boortrifluoride', 'boron trifluoride'], ['BeCl2', 'berylliumchloride', 'beryllium chloride'],
+    ['AlCl3', 'aluminiumchloride', 'aluminium chloride', 'aluminumchloride'], ['SiF4', 'siliciumtetrafluoride', 'silicon tetrafluoride'],
+    ['PCl3', 'fosfortrichloride', 'phosphorus trichloride'], ['PCl5', 'fosforpentachloride', 'phosphorus pentachloride'],
+    ['SF4', 'zwaveltetrafluoride', 'sulfur tetrafluoride'], ['SF6', 'zwavelhexafluoride', 'sulfur hexafluoride'],
+    ['ClF3', 'chloortrifluoride', 'chlorine trifluoride'], ['BrF5', 'broompentafluoride', 'bromine pentafluoride'],
+    ['XeF2', 'xenondifluoride', 'xenon difluoride'], ['XeF4', 'xenontetrafluoride', 'xenon tetrafluoride'],
+    ['NaCl', 'natriumchloride', 'sodium chloride', 'keukenzout', 'zout', 'salt', 'table salt'],
+    ['NaF', 'natriumfluoride', 'sodium fluoride'], ['KCl', 'kaliumchloride', 'potassium chloride'],
+    ['KBr', 'kaliumbromide', 'potassium bromide'], ['LiF', 'lithiumfluoride', 'lithium fluoride'],
+    ['MgO', 'magnesiumoxide', 'magnesium oxide'], ['CaO', 'calciumoxide', 'calcium oxide', 'ongebluste kalk'],
+    ['MgCl2', 'magnesiumchloride', 'magnesium chloride'], ['CaCl2', 'calciumchloride', 'calcium chloride'],
+    ['Na2O', 'natriumoxide', 'sodium oxide'], ['K2O', 'kaliumoxide', 'potassium oxide'],
+  ];
+
+  const SUB_IN = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9' };
+  const nameKey = (s) => fold(s).replace(/[\s\-–()₂]/g, '');
+  const SYMBOLS = Object.fromEntries(ELEMENTS.slice(1).map((el) => [el.symbol, el]));
+
+  // Formule ontleden (hoofdlettergevoelig, met haakjes): "CO(NH2)2" → [[C,1],[O,1],[N,2],[H,4]] (volgorde van invoer)
+  function parseFormula(s) {
+    let i = 0;
+    const num = () => { const m = /^\d+/.exec(s.slice(i)); if (!m) return 1; i += m[0].length; return +m[0]; };
+    function group() {
+      const out = [];
+      while (i < s.length && s[i] !== ')') {
+        if (s[i] === '(') {
+          i++;
+          const inner = group();
+          if (s[i] !== ')') return null;
+          i++;
+          const n = num();
+          if (!inner) return null;
+          for (const [sym, c] of inner) out.push([sym, c * n]);
+        } else {
+          const m = /^[A-Z][a-z]?/.exec(s.slice(i));
+          if (!m || !SYMBOLS[m[0]]) return null;
+          i += m[0].length;
+          out.push([m[0], num()]);
+        }
+      }
+      return out;
+    }
+    const res = group();
+    if (!res || i !== s.length || !res.length) return null;
+    const merged = [];
+    for (const [sym, c] of res) {
+      const hit = merged.find((x) => x[0] === sym);
+      if (hit) hit[1] += c; else merged.push([sym, c]);
+    }
+    return merged;
+  }
+  const signature = (counts) => counts.map(([s, c]) => s + c).sort().join('');
+
+  const LIB_BY_SIG = {}, MOL_BY_NAME = {}, NAME_BY_SIG = {};
+  for (const m of MOL_LIBRARY) {
+    const counts = [];
+    for (const sym of m.atoms.split(' ')) { const h = counts.find((x) => x[0] === sym); if (h) h[1]++; else counts.push([sym, 1]); }
+    LIB_BY_SIG[signature(counts)] = m;
+    NAME_BY_SIG[signature(counts)] = { nl: m.nl, en: m.en };
+    for (const n of [m.nl, m.en, ...(m.alias || [])]) MOL_BY_NAME[nameKey(n)] = m.f;
+  }
+  for (const [f, nl, en, ...alias] of MOL_NAMED) {
+    NAME_BY_SIG[signature(parseFormula(f))] = { nl, en };
+    for (const n of [nl, en, ...alias]) MOL_BY_NAME[nameKey(n)] = f;
+  }
+
+  // Automatische lewisstructuur: twee atomen, of één centraal atoom met eindstandige atomen.
+  function buildGeneric(counts) {
+    const els = counts.map(([s, c]) => [SYMBOLS[s], c]);
+    const total = counts.reduce((a, [, c]) => a + c, 0);
+    const metals = els.filter(([e]) => isMetal(e));
+    for (const [e] of els) {
+      if (!isMainGroup(e)) return { error: `${cap(e.nl)} is een ${CATEGORIES[e.category].nl}: verbindingen daarmee kan dit model (nog) niet opbouwen. Kies hoofdgroepelementen.` };
+      if (e.en_pauling == null) return { error: `Van ${e.nl} is geen elektronegativiteit bekend, daardoor kan ik het bindingstype niet bepalen.` };
+    }
+    if (metals.length === els.length) {
+      return { error: `Tussen metaalatomen ontstaat een metaalbinding: de atomen vormen een metaalrooster met vrij bewegende elektronen, geen losse moleculen.` };
+    }
+    // Zout: metaal + niet-metaal met ΔEN > 1,7
+    if (metals.length && els.length === 2 && classifyBond(els[0][0], els[1][0]) === 'ion') {
+      const [[m, mc]] = els.filter(([e]) => isMetal(e));
+      const [[n, nc]] = els.filter(([e]) => !isMetal(e));
+      const plus = valenceOf(m), minus = needOf(n);
+      if (mc * plus !== nc * minus) {
+        return { error: `Die verhouding klopt niet voor een zout: ${m.symbol}${toSup(plus > 1 ? plus + '+' : '+')} en ${n.symbol}${toSup(minus > 1 ? minus + '-' : '-')} geven samen ${ionFormula(m, n, plus, minus)}.` };
+      }
+      if (mc !== 1 && nc !== 1) return { error: `Deze verhoudingsformule is te groot om als één eenheid te tonen. Probeer bijvoorbeeld NaCl, MgO of CaCl2.` };
+      const [center, other, oc, transfer] = mc === 1 ? [m, n, nc, minus] : [n, m, mc, plus];
+      const atoms = [{ el: center }, ...Array.from({ length: oc }, () => ({ el: other }))];
+      const bonds = atoms.slice(1).map((_, k) => ({ i: 0, j: k + 1, order: transfer }));
+      return { atoms, bonds, ionic: true };
+    }
+    if (metals.length && els.length > 2) return { error: 'Verbindingen van een metaal met meerdere niet-metalen (zoals NaOH) worden nog niet ondersteund.' };
+    if (total === 2) {
+      const a = els[0][0], b = els.length > 1 ? els[1][0] : els[0][0];
+      const na = needOf(a), nb = needOf(b);
+      if (na !== nb || na <= 0 || na > 3) {
+        return { error: `${a.symbol}${b === a ? '₂' : b.symbol} past niet in een eenvoudige lewisstructuur: ${a.symbol} wil ${na} en ${b.symbol} wil ${nb} elektron(en) delen (radicaal of formele ladingen).` };
+      }
+      return { atoms: [{ el: a }, { el: b }], bonds: [{ i: 0, j: 1, order: na }] };
+    }
+    // één centraal atoom
+    const singles = els.filter(([e, c]) => c === 1 && e.Z > 1);
+    if (!singles.length) return null;
+    singles.sort((x, y) => capacityOf(y[0]) - capacityOf(x[0]) || x[0].en_pauling - y[0].en_pauling);
+    const center = singles[0][0];
+    const atoms = [{ el: center }], bonds = [];
+    let skipped = false;
+    for (const [e, c] of els) {
+      for (let k = 0; k < c; k++) {
+        if (e === center && !skipped) { skipped = true; continue; }
+        const need = needOf(e);
+        if (need <= 0 || need > 3) return null;
+        atoms.push({ el: e });
+        bonds.push({ i: 0, j: atoms.length - 1, order: need });
+      }
+    }
+    return { atoms, bonds };
+  }
+  const ionFormula = (m, n, p, q) => {
+    const g = (a, b) => (b ? g(b, a % b) : a);
+    const k = g(p, q);
+    return `${m.symbol}${q / k > 1 ? toSub(q / k) : ''}${n.symbol}${p / k > 1 ? toSub(p / k) : ''}`;
+  };
+
+  function fromLibrary(m) {
+    const atoms = m.atoms.split(' ').map((s, k) => ({ el: SYMBOLS[s], formal: m.formal ? +m.formal.split(' ')[k] : 0 }));
+    const bonds = m.bonds.split(' ').map((b) => {
+      const [, i, op, j] = /^(\d+)([-=#])(\d+)$/.exec(b);
+      return { i: +i, j: +j, order: { '-': 1, '=': 2, '#': 3 }[op] };
+    });
+    return { atoms, bonds };
+  }
+
+  const SHAPES = {
+    '2,0': 'lineair', '3,0': 'trigonaal vlak', '2,1': 'gebogen', '4,0': 'tetraëdrisch', '3,1': 'trigonaal piramidaal',
+    '2,2': 'gebogen', '5,0': 'trigonaal bipiramidaal', '4,1': 'wipplank', '3,2': 'T-vormig', '2,3': 'lineair',
+    '6,0': 'octaëdrisch', '5,1': 'vierkant piramidaal', '4,2': 'vierkant vlak',
+  };
+
+  // Structuur aanvullen: elektronen, vrije paren, bindingstypes, ladingen, geometrie en polariteit
+  function analyze(struct, meta) {
+    const atoms = struct.atoms.map((a, idx) => ({ idx, el: a.el, formal: a.formal || 0, ion: 0, neighbors: [], orderSum: 0 }));
+    const bonds = struct.bonds.map((b) => {
+      const A = atoms[b.i].el, B = atoms[b.j].el;
+      const type = classifyBond(A, B);
+      atoms[b.i].neighbors.push(b.j);
+      atoms[b.j].neighbors.push(b.i);
+      return { ...b, type, dEN: Math.abs(A.en_pauling - B.en_pauling) };
+    });
+    const ionic = bonds.some((b) => b.type === 'ion');
+    for (const b of bonds) {
+      if (b.type === 'ion') {
+        // elektronen gaan van het metaal naar het niet-metaal
+        const [donor, acc] = isMetal(atoms[b.i].el) ? [b.i, b.j] : [b.j, b.i];
+        b.donor = donor; b.acceptor = acc;
+        atoms[donor].ion += b.order;
+        atoms[acc].ion -= b.order;
+      } else {
+        atoms[b.i].orderSum += b.order;
+        atoms[b.j].orderSum += b.order;
+      }
+    }
+    for (const a of atoms) {
+      const charge = a.ion || a.formal;
+      a.Z = a.el.Z;
+      a.A = a.el.standardA;
+      a.N = a.A - a.Z;
+      a.electrons = a.Z - charge;
+      a.config = ionConfig(a.Z, a.electrons);
+      a.shells = shellCounts(a.config);
+      const free = valenceOf(a.el) - a.formal - a.orderSum;
+      a.lonePairs = a.ion ? 0 : free / 2;
+      if (!a.ion && (free < 0 || free % 2)) return { error: `${meta.formula} past niet in een eenvoudige lewisstructuur: ${a.el.symbol} houdt ${free} elektron(en) over (radicaal, of te veel bindingen). Ionen zoals NH₄⁺ worden nog niet ondersteund.` };
+      a.valenceShell = a.shells.length - 1; // index van de buitenste schil
+      const B = a.neighbors.length;
+      a.shape = !a.ion && B >= 2 ? SHAPES[`${B},${a.lonePairs}`] || null : null;
+    }
+    // partiële ladingen: per polaire binding δ− op het meest elektronegatieve atoom
+    for (const a of atoms) a.delta = 0;
+    for (const b of bonds) {
+      if (b.type !== 'polair') continue;
+      const [lo, hi] = atoms[b.i].el.en_pauling < atoms[b.j].el.en_pauling ? [b.i, b.j] : [b.j, b.i];
+      atoms[lo].delta++;
+      atoms[hi].delta--;
+      b.plus = lo; b.minus = hi;
+    }
+    const mol = { kind: 'molecule', ...meta, atoms, bonds, ionic };
+    // geometrie met eenheidsafstanden voor de dipoolberekening
+    const geo = embedMolecule(mol, () => 1);
+    let mu = [0, 0, 0];
+    for (const b of bonds) {
+      if (b.type !== 'polair') continue;
+      const d = vnorm(vsub(geo.positions[b.minus], geo.positions[b.plus])); // dipoolpijl wijst naar δ−
+      mu = vadd(mu, vmul(d, b.dEN));
+    }
+    // formele ladingen (CO, O₃) verschuiven de lading ook: de pijl wijst naar de negatieve kant
+    for (const a of atoms) if (a.formal) mu = vadd(mu, vmul(geo.positions[a.idx], -a.formal));
+    const mag = Math.hypot(...mu);
+    mol.dipole = mag > 0.05 ? vnorm(mu) : null;
+    mol.dipoleMagnitude = mag;
+    mol.polar = ionic ? null : mag > 0.05;
+    mol.totals = atoms.reduce((t, a) => ({ protons: t.protons + a.Z, neutrons: t.neutrons + a.N, electrons: t.electrons + a.electrons }), { protons: 0, neutrons: 0, electrons: 0 });
+    return { molecule: mol };
+  }
+
+  // ---------- Vectorhulpjes + VSEPR-inbedding ----------
+  const vadd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const vsub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const vmul = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+  const vdot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const vcross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const vnorm = (a) => { const l = Math.hypot(...a) || 1; return vmul(a, 1 / l); };
+  const vrot = (v, k, t) => vadd(vadd(vmul(v, Math.cos(t)), vmul(vcross(k, v), Math.sin(t))), vmul(k, vdot(k, v) * (1 - Math.cos(t))));
+  function alignFn(a, b) {
+    const ax = vcross(a, b), s = Math.hypot(...ax), c = vdot(a, b);
+    if (s < 1e-9) {
+      if (c > 0) return (v) => v;
+      const perp = vnorm(Math.abs(a[0]) < 0.9 ? vcross(a, [1, 0, 0]) : vcross(a, [0, 1, 0]));
+      return (v) => vrot(v, perp, Math.PI);
+    }
+    const k = vmul(ax, 1 / s), t = Math.atan2(s, c);
+    return (v) => vrot(v, k, t);
+  }
+
+  const TA = Math.acos(-1 / 3) / 2; // halve tetraëderhoek
+  const TEMPLATES = {
+    1: [[0, -1, 0]],
+    2: [[-1, 0, 0], [1, 0, 0]],
+    3: [[-Math.sin(Math.PI / 3), -0.5, 0], [Math.sin(Math.PI / 3), -0.5, 0], [0, 1, 0]],
+    4: [[Math.sin(TA), -Math.cos(TA), 0], [-Math.sin(TA), -Math.cos(TA), 0], [0, Math.cos(TA), Math.sin(TA)], [0, Math.cos(TA), -Math.sin(TA)]],
+    5: [[1, 0, 0], [-0.5, 0, Math.sin(Math.PI / 3)], [-0.5, 0, -Math.sin(Math.PI / 3)], [0, 1, 0], [0, -1, 0]],
+    6: [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]],
+  };
+
+  // Plaatst atomen volgens VSEPR (ideale hoeken). lengthFn(i, j) geeft de afstand tussen gebonden atomen.
+  function embedMolecule(mol, lengthFn) {
+    const n = mol.atoms.length;
+    const positions = new Array(n), lonePairDirs = new Array(n);
+    const deg = (i) => mol.atoms[i].neighbors.length;
+    let root = 0;
+    for (let i = 1; i < n; i++) if (deg(i) > deg(root)) root = i;
+    positions[root] = [0, 0, 0];
+
+    function place(i, parent, ref) {
+      const a = mol.atoms[i];
+      const B = a.neighbors.length, L = a.ion ? 0 : a.lonePairs, SN = B + L;
+      if (!SN) { lonePairDirs[i] = []; return; }
+      let slots = TEMPLATES[SN].map((v) => vnorm(v));
+      // vrije paren: bij 5 en 6 elektronenparen op de voorkeursposities (equatoriaal / trans), anders achteraan
+      const idx = slots.map((_, k) => k);
+      const lpIdx = SN >= 5 ? idx.slice(0, L) : idx.slice(SN - L);
+      const bondIdx = idx.filter((k) => !lpIdx.includes(k));
+      let k0 = 0;
+      if (parent != null) {
+        const toParent = vnorm(vsub(positions[parent], positions[i]));
+        const r1 = alignFn(slots[bondIdx[0]], toParent);
+        slots = slots.map(r1);
+        const other = B > 1 ? slots[bondIdx[1]] : L ? slots[lpIdx[0]] : null;
+        if (other && ref) {
+          // torsie: 'other' antiperiplanair t.o.v. een ander substituent van het ouderatoom
+          const u = toParent;
+          const p1 = vsub(other, vmul(u, vdot(u, other)));
+          const q = vmul(vsub(ref, vmul(u, vdot(u, ref))), -1);
+          if (Math.hypot(...p1) > 1e-6 && Math.hypot(...q) > 1e-6) {
+            const t = Math.atan2(vdot(u, vcross(p1, q)), vdot(p1, q));
+            slots = slots.map((v) => vrot(v, u, t));
+          }
+        }
+        k0 = 1;
+      }
+      lonePairDirs[i] = lpIdx.map((k) => slots[k]);
+      const children = a.neighbors.filter((j) => j !== parent);
+      const dirs = children.map((_, c) => slots[bondIdx[k0 + c]]);
+      children.forEach((j, c) => { positions[j] = vadd(positions[i], vmul(dirs[c], lengthFn(i, j))); });
+      children.forEach((j, c) => {
+        const others = [...dirs.filter((_, d) => d !== c), ...lonePairDirs[i], ...(parent != null ? [vnorm(vsub(positions[parent], positions[i]))] : [])];
+        place(j, i, others[0] || null);
+      });
+    }
+    place(root, null, null);
+    const cen = vmul(positions.reduce(vadd, [0, 0, 0]), 1 / n);
+    return { positions: positions.map((p) => vsub(p, cen)), lonePairDirs, root };
+  }
+
+  function formulaHTML(f) { return f.replace(/(\d+)/g, '<sub>$1</sub>'); }
+  const formulaText = (f) => f.replace(/\d/g, (d) => SUB[d]);
+
+  // Resultaat: null (geen molecuul → als atoom proberen), { molecule } of { error }
+  function resolveMolecule(raw) {
+    const input = String(raw || '').trim();
+    if (!input) return null;
+    const byName = MOL_BY_NAME[nameKey(input)];
+    const s = byName || input.replace(/[₀-₉]/g, (c) => SUB_IN[c]).replace(/\s+/g, '');
+    const counts = parseFormula(s);
+    if (!counts) return null;
+    const total = counts.reduce((a, [, c]) => a + c, 0);
+    const sig = signature(counts);
+    const lib = LIB_BY_SIG[sig];
+    // "Fe", "U235", "C14", "H3": geen molecuul maar een atoom/isotoop (behalve bekende moleculen zoals O3)
+    if (total < 2 || (counts.length === 1 && total !== 2 && !lib)) return null;
+    const names = NAME_BY_SIG[sig];
+    const meta = { formula: s, nl: names ? names.nl : null, en: names ? names.en : null };
+    let struct = lib ? fromLibrary(lib) : buildGeneric(counts);
+    if (lib) meta.formula = lib.f;
+    if (!struct) {
+      return { error: `${formulaText(s)} kan ik niet automatisch opbouwen: dit model tekent moleculen met één centraal atoom (zoals CH₄, SF₆), twee atomen (HCl, N₂), eenvoudige zouten (NaCl, CaCl₂) en een reeks bekende moleculen (ethanol, ethaanzuur, ureum, …).` };
+    }
+    if (struct.error) return { error: struct.error };
+    if (struct.atoms.reduce((t, a) => t + a.el.Z, 0) > 500) return { error: 'Dit molecuul heeft te veel elektronen om vloeiend te tonen.' };
+    return analyze(struct, meta);
+  }
+
   window.AtomCore = {
+    resolveMolecule, embedMolecule, BOND_TYPES, formulaHTML, formulaText, isMetal,
     ELEMENTS, CATEGORIES, EXCEPTIONS, resolve, suggestions, configString, shellCounts, subshellList, ionConfig, neutralConfig,
     formatHalfLife, packNucleus, toSup, toSub, cap, chargeText, ionSuffix, countElectrons,
   };
@@ -886,6 +1298,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const EXAMPLES = ['H', 'He', 'C-14', 'O', 'Fe', 'Au', 'U-235', 'U-238', 'Na+', 'Cl-'];
+  const MOL_EXAMPLES = ['H2O', 'CO2', 'CH4', 'NH3', 'O2', 'N2', 'HCl', 'NaCl', 'MgO', 'CaCl2', 'C2H4', 'C2H5OH', 'SF6'];
   const SHELL_NAMES = 'KLMNOPQR';
 
   function nuclideHTML(a) {
@@ -1017,6 +1430,150 @@
     document.title = `${el.symbol}-${a.A}${q ? ' ' + C.ionSuffix(q) : ''} · Atoommodel 3D`;
   }
 
+  // ---------- Infopaneel voor een molecuul ----------
+  const fmtNL = (x, d = 2) => x.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const deltaText = (n) => (Math.abs(n) > 1 ? Math.abs(n) : '') + (n > 0 ? 'δ+' : 'δ−');
+  const ORDER_NL = ['', 'enkelvoudige binding: 1 gedeeld elektronenpaar', 'dubbele binding: 2 gedeelde elektronenparen', 'drievoudige binding: 3 gedeelde elektronenparen'];
+  const EXPLAIN = {
+    apolair: 'Het verschil in elektronegativiteit is kleiner dan 0,4: beide atomen trekken (bijna) even hard aan het gedeelde elektronenpaar.',
+    polair: 'Het gedeelde elektronenpaar zit dichter bij het meest elektronegatieve atoom. Die kant wordt een beetje negatief (δ−), de andere kant een beetje positief (δ+).',
+    ion: 'Het metaal staat elektronen af aan het niet-metaal. Er ontstaan ionen met een tegengestelde lading die elkaar sterk aantrekken.',
+    metaal: 'Metaalatomen delen hun valentie-elektronen in een ‘elektronenzee’.',
+  };
+
+  function renderMoleculePanel(m) {
+    const atoms = m.atoms;
+    document.documentElement.style.setProperty('--accent', m.ionic ? '#ff8787' : '#38d9a9');
+    const name = m.nl ? C.cap(m.nl) : C.formulaText(m.formula);
+    const kind = m.ionic ? 'zout · ionverbinding' : m.polar ? 'molecuul · polair' : 'molecuul · apolair';
+
+    // samenstelling per element
+    const counts = [];
+    for (const a of atoms) { const h = counts.find((c) => c.el === a.el); if (h) h.n++; else counts.push({ el: a.el, n: 1 }); }
+    const elButtons = counts.map((c) => `<button type="button" class="suggest-atom" data-q="${c.el.symbol}" title="Bekijk het ${esc(c.el.nl)}atoom">${c.n} × ${c.el.symbol} · ${esc(c.el.nl)}</button>`).join('');
+
+    // bindingen groeperen
+    const groups = [];
+    for (const b of m.bonds) {
+      const A = atoms[b.i].el, B = atoms[b.j].el;
+      const [lo, hi] = A.en_pauling <= B.en_pauling ? [A, B] : [B, A];
+      const key = [A.symbol, B.symbol].sort().join() + b.order + b.type;
+      const g = groups.find((x) => x.key === key);
+      if (g) g.n++; else groups.push({ key, n: 1, b, A, B, lo, hi });
+    }
+    const bondRows = groups.map(({ n, b, A, B, lo, hi }) => {
+      const t = C.BOND_TYPES[b.type];
+      const pair = b.type === 'ion' ? `${A.symbol}···${B.symbol}` : A.symbol + ['', '–', '=', '≡'][b.order] + B.symbol;
+      let detail;
+      if (b.type === 'ion') {
+        const donor = atoms[b.donor].el, acc = atoms[b.acceptor].el;
+        detail = `${donor.symbol} geeft ${b.order} elektron${b.order > 1 ? 'en' : ''} af aan ${acc.symbol}.`;
+      } else detail = C.cap(ORDER_NL[b.order]) + '.';
+      return `
+        <div class="bond-row">
+          <div class="head"><span class="pair">${n > 1 ? n + ' × ' : ''}${pair}</span><span class="btype ${b.type}">${t.nl}</span></div>
+          <div class="note">ΔEN = ${fmtNL(hi.en_pauling)} (${hi.symbol}) − ${fmtNL(lo.en_pauling)} (${lo.symbol}) = <strong>${fmtNL(b.dEN)}</strong> · ${detail}</div>
+          <div class="note">${EXPLAIN[b.type]}</div>
+        </div>`;
+    }).join('');
+
+    // ladingen
+    const chargeItems = [];
+    for (const a of atoms) {
+      let txt = null, cls = '';
+      if (a.ion) { txt = a.el.symbol + C.toSup(C.ionSuffix(a.ion)); cls = a.ion > 0 ? 'pos' : 'neg'; }
+      else if (a.delta) { txt = `${a.el.symbol}: ${deltaText(a.delta)}`; cls = a.delta > 0 ? 'pos' : 'neg'; }
+      if (a.formal) { txt = (txt ? txt + ', ' : a.el.symbol + ': ') + `formeel ${a.formal > 0 ? '+' : '−'}1`; cls = cls || (a.formal > 0 ? 'pos' : 'neg'); }
+      if (txt && !chargeItems.some((c) => c.txt === txt)) chargeItems.push({ txt, cls });
+    }
+    const hasPolar = m.bonds.some((b) => b.type === 'polair');
+    let polarity;
+    if (m.ionic) polarity = `Een zout: de ionen trekken elkaar aan door hun tegengestelde lading. In werkelijkheid vormen ze een ionrooster met heel veel ionen; hier zie je één formule-eenheid.`;
+    else if (m.polar) polarity = `Het molecuul is <strong>polair</strong>: de ladingen liggen niet symmetrisch, dus er is een dipool. De gele pijl wijst naar de negatieve kant.`;
+    else if (hasPolar) polarity = `Het molecuul is <strong>apolair</strong>: de bindingen zijn wel polair, maar ze liggen symmetrisch, zodat hun dipolen elkaar opheffen.`;
+    else polarity = `Het molecuul is <strong>apolair</strong>: er zijn geen polaire bindingen.`;
+    if (atoms.some((a) => a.formal)) polarity += ' Formele ladingen (⊕/⊖) volgen uit de lewisstructuur.';
+
+    // ruimtelijke bouw
+    const centers = atoms.filter((a) => a.shape);
+    const seen = new Set();
+    const shapeRows = centers.filter((a) => { const k = a.el.symbol + a.shape; if (seen.has(k)) return false; seen.add(k); return true; })
+      .map((a) => `<div class="row"><span class="k">rond ${a.el.symbol}</span><span class="v"><strong>${a.shape}</strong> · ${a.neighbors.length} bindingen, ${a.lonePairs} vrij${a.lonePairs === 1 ? ' elektronenpaar' : 'e elektronenparen'}</span></div>`).join('');
+    const shared = m.bonds.filter((b) => b.type !== 'ion').reduce((t, b) => t + b.order, 0);
+    const lone = atoms.reduce((t, a) => t + (a.ion ? 0 : a.lonePairs), 0);
+    const moved = m.bonds.filter((b) => b.type === 'ion').reduce((t, b) => t + b.order, 0);
+
+    $('panel').innerHTML = `
+      <section class="card hero">
+        <div class="hero-text">
+          <div class="formula">${C.formulaHTML(m.formula)}</div>
+          <h2 style="margin-top:4px">${esc(name)}${m.en ? `<span class="en">${esc(C.cap(m.en))}</span>` : ''}</h2>
+          <div class="hero-row"><span class="chip">${kind}</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Samenstelling</h3>
+        <div class="stats">
+          <div class="stat"><div class="k">Atomen</div><div class="v">${atoms.length}</div></div>
+          <div class="stat"><div class="k"><span class="dot p"></span>Protonen</div><div class="v">${m.totals.protons}</div></div>
+          <div class="stat"><div class="k"><span class="dot n"></span>Neutronen</div><div class="v">${m.totals.neutrons}</div></div>
+          <div class="stat"><div class="k"><span class="dot e"></span>Elektronen</div><div class="v">${m.totals.electrons}</div></div>
+        </div>
+        <div class="el-list">${elButtons}</div>
+        <p class="note">Klik op een element om het atoom apart te bekijken. Elk atoom is getoond met zijn standaardisotoop.</p>
+      </section>
+
+      <section class="card">
+        <h3>Bindingen</h3>
+        ${bondRows}
+        <p class="note" style="margin-top:10px">Regel (elektronegativiteit volgens Pauling): ΔEN &lt; 0,4 → apolaire atoombinding ·
+          0,4 tot 1,7 → polaire atoombinding · metaal + niet-metaal met ΔEN &gt; 1,7 → ionbinding · metaal + metaal → metaalbinding.</p>
+      </section>
+
+      <section class="card">
+        <h3>Ladingen</h3>
+        ${chargeItems.length ? `<div class="charge-list">${chargeItems.map((c) => `<span class="${c.cls}">${esc(c.txt)}</span>`).join('')}</div>` : '<p class="note">Geen (partiële) ladingen: alle bindingen zijn apolair.</p>'}
+        <p class="note">${polarity}</p>
+        <p class="note">Zet <strong>Ladingen (δ+/δ−)</strong> aan onder de 3D-weergave: positieve kanten kleuren blauw, negatieve rood${m.dipole ? ' en de dipoolpijl verschijnt' : ''}.</p>
+      </section>
+
+      <section class="card">
+        <h3>Elektronen en ruimtelijke bouw</h3>
+        ${m.ionic ? `<div class="row"><span class="k">Overgedragen elektronen</span><span class="v"><strong>${moved}</strong></span></div>` : `
+        <div class="row"><span class="k">Gedeelde elektronenparen</span><span class="v"><strong>${shared}</strong></span></div>
+        <div class="row"><span class="k">Vrije elektronenparen</span><span class="v"><strong>${lone}</strong></span></div>`}
+        ${shapeRows}
+        ${shapeRows ? '<p class="note">Vorm volgens VSEPR, met ideale hoeken. In werkelijkheid duwen vrije elektronenparen de bindingen iets dichter samen (water: 104,5° in plaats van 109,5°).</p>' : ''}
+      </section>
+
+      <section class="card">
+        <h3>Legende</h3>
+        <div class="legend">
+          <div><span class="dot p"></span>Proton</div>
+          <div><span class="dot n"></span>Neutron</div>
+          <div><span class="dot e"></span>Elektron</div>
+          <div><span class="dot t"></span>Overgedragen elektron</div>
+          <div><span class="line-swatch" style="--c:#d6deef"></span>Apolaire binding</div>
+          <div><span class="line-swatch" style="--c:#ffb454"></span>Polaire binding</div>
+          <div><span class="line-swatch dashed" style="--c:#ff6b9a"></span>Ionbinding</div>
+          <div><span class="ring-swatch"></span>Binnenste schil</div>
+          <div><span class="dot plus"></span>δ+ / positief ion</div>
+          <div><span class="dot minus"></span>δ− / negatief ion</div>
+        </div>
+        <p class="note">De doorschijnende bol is de buitenste schil (valentieschil). Een gedeeld elektronenpaar draait op de cirkel waar twee valentieschillen elkaar snijden; vrije elektronenparen zitten los op de schil.</p>
+      </section>
+
+      <section class="card scale-card">
+        <strong>Niet op schaal.</strong> Kernen, schillen en afstanden zijn sterk vergroot en vereenvoudigd.
+        Echte elektronen vormen wolken (orbitalen) en geen banen.
+      </section>`;
+
+    $('caption').innerHTML = `<span class="formula" style="font-size:22px">${C.formulaHTML(m.formula)}</span>`;
+    $('caption').title = name;
+    document.title = `${C.formulaText(m.formula)} · Atoommodel 3D`;
+  }
+
   function showMessage(kind, html) {
     const box = $('msg');
     box.className = 'msg ' + kind;
@@ -1028,6 +1585,18 @@
   const App = {
     current: null,
     show(query) {
+      const mol = C.resolveMolecule(query);
+      if (mol && mol.error) {
+        let html = esc(mol.error);
+        const asAtom = C.resolve(query);
+        if (!asAtom.error) {
+          const el = asAtom.atom.el;
+          html += ` Bedoelde je het element <button type="button" class="suggest" data-q="${el.symbol}">${el.symbol} (${esc(el.nl)})</button>?`;
+        }
+        showMessage('error', html);
+        return false;
+      }
+      if (mol) return App.showMolecule(mol.molecule, query);
       const res = C.resolve(query);
       if (res.error) {
         let html = esc(res.error);
@@ -1047,21 +1616,31 @@
       try { history.replaceState(null, '', '#' + encodeURIComponent(String(query).trim())); } catch (e) { /* file:// kan dit weigeren */ }
       return true;
     },
+    showMolecule(m, query) {
+      App.current = m;
+      hideMessage();
+      renderMoleculePanel(m);
+      if (window.AtomViewer) window.AtomViewer.loadMolecule(m);
+      try { history.replaceState(null, '', '#' + encodeURIComponent(String(query).trim())); } catch (e) { /* file:// kan dit weigeren */ }
+      return true;
+    },
   };
   window.App = App;
 
   const input = $('q');
   const go = (q) => { input.value = q; App.show(q); };
   $('search').addEventListener('submit', (e) => { e.preventDefault(); App.show(input.value); });
-  for (const ex of EXAMPLES) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = ex;
-    b.addEventListener('click', () => go(ex));
-    $('examples').appendChild(b);
+  for (const [list, box] of [[EXAMPLES, 'examples'], [MOL_EXAMPLES, 'mol-examples']]) {
+    for (const ex of list) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = box === 'mol-examples' ? C.formulaHTML(ex) : esc(ex);
+      b.addEventListener('click', () => go(ex));
+      $(box).appendChild(b);
+    }
   }
   document.addEventListener('click', (e) => {
-    const b = e.target.closest('.suggest, #iso-list button');
+    const b = e.target.closest('.suggest, .suggest-atom, #iso-list button');
     if (b) go(b.dataset.q);
   });
 
@@ -1182,22 +1761,40 @@ const nucLabel = new CSS2DObject(nucLabelEl);
 nucLabel.center.set(0.5, 1);
 atomGroup.add(nucLabel);
 
-const MAX_E = 160;
+const MAX_E = 640;
 const ePos = new Float32Array(MAX_E * 3);
+const eCol = new Float32Array(MAX_E * 3);
 const eGeo = new THREE.BufferGeometry();
 eGeo.setAttribute('position', new THREE.BufferAttribute(ePos, 3).setUsage(THREE.DynamicDrawUsage));
+eGeo.setAttribute('color', new THREE.BufferAttribute(eCol, 3));
 const eGlow = new THREE.Points(eGeo, new THREE.PointsMaterial({
-  map: glowTexture(), color: 0x5fdcff, size: 1.5, sizeAttenuation: true,
+  map: glowTexture(), color: 0xffffff, vertexColors: true, size: 1.5, sizeAttenuation: true,
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
 }));
 eGlow.frustumCulled = false;
 eGlow.renderOrder = 2;
-atomGroup.add(eGlow);
-const eCore = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xa8f0ff }), MAX_E);
+scene.add(eGlow);
+const eCore = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAX_E);
 eCore.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 eCore.frustumCulled = false;
 eCore.count = 0;
-atomGroup.add(eCore);
+scene.add(eCore);
+
+// kleuren: gewone elektronen cyaan, overgedragen elektronen (ionbinding) goud
+const E_COLORS = {
+  normal: { glow: new THREE.Color(0x5fdcff), core: new THREE.Color(0xa8f0ff) },
+  moved: { glow: new THREE.Color(0xffb938), core: new THREE.Color(0xffe39a) },
+};
+function paintElectrons(count, isMoved = () => false) {
+  for (let i = 0; i < count; i++) {
+    const c = isMoved(i) ? E_COLORS.moved : E_COLORS.normal;
+    c.glow.toArray(eCol, i * 3);
+    eCore.setColorAt(i, c.core);
+  }
+  eGeo.attributes.color.needsUpdate = true;
+  if (eCore.instanceColor) eCore.instanceColor.needsUpdate = true;
+}
+paintElectrons(MAX_E);
 
 const circleGeo = new THREE.BufferGeometry().setFromPoints(
   Array.from({ length: 256 }, (_, i) => { const a = (i / 256) * Math.PI * 2; return new THREE.Vector3(Math.cos(a), 0, Math.sin(a)); }),
@@ -1214,6 +1811,9 @@ const state = {
   atom: null,
   orbits: [],
   model: 'bohr',
+  mode: 'atom',
+  mol: null,
+  showCharges: false,
   nucleusUnits: 1,
   nucleonR: 0.01,
   nucleonRTarget: NUCLEON_R.normal,
@@ -1227,26 +1827,35 @@ const state = {
   tween: null,
 };
 
-function buildNucleus(a) {
-  for (const m of [protonMesh, neutronMesh]) if (m) { nucleusGroup.remove(m); m.dispose(); }
-  protonMesh = neutronMesh = null;
-  const pack = window.AtomCore.packNucleus(a.Z, a.N, a.Z * 7919 + a.A * 104729);
+const packCache = new Map();
+function packFor(Z, N) {
+  const key = Z + ':' + N;
+  if (!packCache.has(key)) packCache.set(key, window.AtomCore.packNucleus(Z, N, Z * 7919 + (Z + N) * 104729));
+  return packCache.get(key);
+}
+
+// Twee InstancedMeshes (protonen, neutronen) voor één kern, met nucleonen van straal 1
+function nucleusMeshes(Z, N) {
+  const pack = packFor(Z, N);
   const m4 = new THREE.Matrix4();
-  protonMesh = new THREE.InstancedMesh(nucleonGeo, protonMat, a.Z);
-  if (a.N > 0) neutronMesh = new THREE.InstancedMesh(nucleonGeo, neutronMat, a.N);
+  const meshes = [new THREE.InstancedMesh(nucleonGeo, protonMat, Z)];
+  if (N > 0) meshes.push(new THREE.InstancedMesh(nucleonGeo, neutronMat, N));
   let ip = 0, inn = 0;
   for (let i = 0; i < pack.count; i++) {
     m4.makeTranslation(pack.positions[3 * i], pack.positions[3 * i + 1], pack.positions[3 * i + 2]);
-    if (pack.types[i] === 1) protonMesh.setMatrixAt(ip++, m4);
-    else neutronMesh.setMatrixAt(inn++, m4);
+    if (pack.types[i] === 1) meshes[0].setMatrixAt(ip++, m4);
+    else meshes[1].setMatrixAt(inn++, m4);
   }
-  for (const m of [protonMesh, neutronMesh]) {
-    if (!m) continue;
-    m.instanceMatrix.needsUpdate = true;
-    m.frustumCulled = false;
-    nucleusGroup.add(m);
-  }
-  state.nucleusUnits = pack.radius;
+  for (const m of meshes) { m.instanceMatrix.needsUpdate = true; m.frustumCulled = false; }
+  return { meshes, radius: pack.radius };
+}
+
+function buildNucleus(a) {
+  for (const m of [protonMesh, neutronMesh]) if (m) { nucleusGroup.remove(m); m.dispose(); }
+  const nuc = nucleusMeshes(a.Z, a.N);
+  [protonMesh, neutronMesh = null] = nuc.meshes;
+  for (const m of nuc.meshes) nucleusGroup.add(m);
+  state.nucleusUnits = nuc.radius;
   nucLabelEl.innerHTML = `<span><span class="p">${a.Z} p⁺</span> · <span class="n">${a.N} n⁰</span></span>`;
 }
 
@@ -1262,16 +1871,21 @@ function orbitDefs(a) {
   return window.AtomCore.subshellList(a.config).map((s) => ({ ...s, name: s.key, color: SUB_COLORS[s.l] }));
 }
 
-function buildOrbits(a) {
-  const prev = new Map(state.orbits.map((o) => [o.key, o]));
-  const prevA = new Map();
-  for (const o of state.orbits) if (!prevA.has(o.n)) prevA.set(o.n, o.a);
+function clearOrbits() {
   for (const o of state.orbits) {
     o.group.remove(o.label);
     o.label.element.remove();
     atomGroup.remove(o.group);
     o.ring.material.dispose();
   }
+  state.orbits = [];
+}
+
+function buildOrbits(a) {
+  const prev = new Map(state.orbits.map((o) => [o.key, o]));
+  const prevA = new Map();
+  for (const o of state.orbits) if (!prevA.has(o.n)) prevA.set(o.n, o.a);
+  clearOrbits();
   state.orbits = orbitDefs(a).map((d) => {
     const [tilt, yaw] = SHELL_TILTS[(d.n - 1) % SHELL_TILTS.length];
     const group = new THREE.Group();
@@ -1306,6 +1920,7 @@ function buildOrbits(a) {
   });
   eCore.count = a.electrons;
   eGeo.setDrawRange(0, a.electrons);
+  paintElectrons(a.electrons);
 }
 
 function layoutTargets() {
@@ -1326,7 +1941,7 @@ function setModel(model) {
   state.model = model;
   for (const b of document.querySelectorAll('[data-model]')) setPressed(b, b.dataset.model === model);
   try { localStorage.setItem('atoommodel-model', model); } catch (e) { /* geen opslag beschikbaar */ }
-  if (!state.atom) return;
+  if (!state.atom || state.mode !== 'atom') return;
   buildOrbits(state.atom);
   layoutTargets();
   fitCamera();
@@ -1376,13 +1991,301 @@ function stepTween(dt) {
 }
 
 function load(a) {
-  const first = !state.atom;
+  const first = !state.atom && !state.mol;
+  setMode('atom');
   state.atom = a;
   buildNucleus(a);
   buildOrbits(a);
   state.nucleonR = 0.01; // kern "ploft" open
   layoutTargets();
   fitCamera({ resetDir: first, instant: first });
+}
+
+// =====================================================================
+// Moleculen: elk atoom als klein bohratoom, bindingen tussen de valentieschillen
+// =====================================================================
+const molGroup = new THREE.Group();
+molGroup.visible = false;
+scene.add(molGroup);
+const MOL = { nucleon: 0.42, gap: 2.0, spacing: 2.3 };
+const BOND_COLORS = { apolair: 0xd6deef, polair: 0xffb454, ion: 0xff6b9a, metaal: 0xb0b8c8 };
+const CHARGE_COLORS = { plus: new THREE.Color(0x3d7dff), minus: new THREE.Color(0xff3d52), neutral: new THREE.Color(0x7fc8ff) };
+const sphereGeo = new THREE.SphereGeometry(1, 40, 28);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const tmpV2 = new THREE.Vector3();
+
+// Doorschijnende schil met een oplichtende rand (fresnel): overlappende schillen blijven zichtbaar
+function shellMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: CHARGE_COLORS.neutral.clone() }, uStrength: { value: 1 } },
+    vertexShader: `
+      varying vec3 vN; varying vec3 vV;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 uColor; uniform float uStrength;
+      varying vec3 vN; varying vec3 vV;
+      void main() {
+        float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+        gl_FragColor = vec4(uColor, (pow(f, 2.4) * 0.5 + 0.03) * uStrength);
+        #include <colorspace_fragment>
+      }`,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+}
+
+const deltaText = (n) => (n ? (Math.abs(n) > 1 ? Math.abs(n) : '') + (n > 0 ? 'δ+' : 'δ−') : '');
+const ionText = (q) => window.AtomCore.ionSuffix(q).replace('-', '−');
+
+function atomLabelHTML(a) {
+  let html = `<b>${a.el.symbol}</b>`;
+  if (a.ion) html += `<i class="ion ${a.ion > 0 ? 'pos' : 'neg'}">${ionText(a.ion)}</i>`;
+  if (a.delta) html += `<i class="dq ${a.delta > 0 ? 'pos' : 'neg'}">${deltaText(a.delta)}</i>`;
+  if (a.formal) html += `<i class="dq ${a.formal > 0 ? 'pos' : 'neg'}" title="formele lading">${a.formal > 0 ? '⊕' : '⊖'}</i>`;
+  return `<span class="al">${html}</span>`;
+}
+
+function clearMolecule() {
+  molGroup.traverse((o) => { if (o.isCSS2DObject) o.element.remove(); });
+  for (const d of state.molView ? state.molView.disposables : []) d.dispose();
+  molGroup.clear();
+  state.molView = null;
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  atomGroup.visible = mode === 'atom';
+  molGroup.visible = mode === 'molecule';
+  nucLabel.visible = mode === 'atom';
+  if (mode === 'atom') { clearMolecule(); state.mol = null; }
+  else { clearOrbits(); state.atom = null; }
+  const isMol = mode === 'molecule';
+  for (const b of document.querySelectorAll('[data-model]')) b.disabled = isMol;
+  $('tgl-enlarge').disabled = isMol;
+  $('sw-charges').hidden = !isMol;
+}
+
+function loadMolecule(mol) {
+  const first = !state.atom && !state.mol;
+  setMode('molecule');
+  clearMolecule();
+  state.mol = mol;
+  const C = window.AtomCore;
+  const view = { disposables: [], rings: [], spheres: [], tracks: [], nuclei: [], nucScale: 0.01, time: 0, dipole: null };
+  state.molView = view;
+  const disp = view.disposables;
+
+  const addRing = (center, q, r, color, opacity) => {
+    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+    disp.push(mat);
+    const ring = new THREE.LineLoop(circleGeo, mat);
+    ring.position.copy(center);
+    ring.quaternion.copy(q);
+    ring.scale.setScalar(r);
+    molGroup.add(ring);
+    view.rings.push(ring);
+  };
+  const addLabel = (html, cls, pos, center = [0.5, 0.5]) => {
+    const el = document.createElement('div');
+    el.className = cls;
+    el.innerHTML = html;
+    const obj = new CSS2DObject(el);
+    obj.center.set(...center);
+    obj.position.copy(pos);
+    molGroup.add(obj);
+    return obj;
+  };
+
+  // afmetingen per atoom: kernstraal en schilstralen
+  const info = mol.atoms.map((a) => {
+    const nR = packFor(a.Z, a.N).radius * MOL.nucleon;
+    const radii = a.shells.map((_, k) => nR + MOL.gap + k * MOL.spacing);
+    return { a, nR, radii, outer: radii.length ? radii[radii.length - 1] : nR + 1 };
+  });
+  const bondOf = (i, j) => mol.bonds.find((b) => (b.i === i && b.j === j) || (b.i === j && b.j === i));
+  // atoombinding: de valentieschillen overlappen (meer bij dubbele/drievoudige bindingen); ionbinding: ionen raken elkaar net niet
+  const lengthFn = (i, j) => {
+    const b = bondOf(i, j), ri = info[i].outer, rj = info[j].outer;
+    if (b.type === 'ion') return ri + rj + 1.2;
+    return ri + rj - 0.42 * Math.min(ri, rj) * (1 + 0.28 * (b.order - 1));
+  };
+  const geo = C.embedMolecule(mol, lengthFn);
+  const P = geo.positions.map((p) => new THREE.Vector3(...p));
+  let fit = 1;
+
+  info.forEach((inf, i) => {
+    const a = inf.a, pos = P[i];
+    const g = new THREE.Group();
+    g.position.copy(pos);
+    for (const m of nucleusMeshes(a.Z, a.N).meshes) { g.add(m); disp.push(m); }
+    g.scale.setScalar(0.01);
+    molGroup.add(g);
+    view.nuclei.push(g);
+    // bij een ion zijn alle schillen gewone ringen; bij een atoombinding alleen de binnenste schillen
+    const ringCount = a.ion ? a.shells.length : a.shells.length - 1;
+    for (let k = 0; k < ringCount; k++) {
+      const [tilt, yaw] = SHELL_TILTS[k % SHELL_TILTS.length];
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, yaw + i * 1.3, 0, 'YXZ'));
+      addRing(pos, q, inf.radii[k], SHELL_COLORS[k % SHELL_COLORS.length], 0.4);
+      view.tracks.push({ center: pos, q, r: inf.radii[k], count: a.shells[k], speed: 1.3 / Math.pow(k + 1, 0.85), phase: i * 1.7 + k, atom: i, shell: k });
+    }
+    // buitenste schil als doorschijnende bol
+    const mat = shellMaterial();
+    disp.push(mat);
+    const sph = new THREE.Mesh(sphereGeo, mat);
+    sph.position.copy(pos);
+    sph.scale.setScalar(inf.outer);
+    sph.renderOrder = 1;
+    molGroup.add(sph);
+    view.spheres.push({ mesh: sph, atom: a });
+    // vrije elektronenparen op de valentieschil
+    geo.lonePairDirs[i].forEach((d, k) => {
+      const dir = new THREE.Vector3(...d);
+      view.tracks.push({
+        center: pos.clone().addScaledVector(dir, inf.outer), q: new THREE.Quaternion().setFromUnitVectors(Y_AXIS, dir),
+        r: 0.55, count: 2, speed: 2.4, phase: k * 1.1 + i, atom: i, lone: true,
+      });
+    });
+    addLabel(atomLabelHTML(a), 'atom-label', pos.clone().add(new THREE.Vector3(0, inf.nR + 0.35, 0)), [0.5, 1]);
+    fit = Math.max(fit, pos.length() + inf.outer);
+  });
+
+  // bindingen
+  const labelled = new Set();
+  const received = mol.atoms.map(() => []);
+  for (const b of mol.bonds) {
+    const pi = P[b.i], pj = P[b.j], ri = info[b.i].outer, rj = info[b.j].outer;
+    const axis = pj.clone().sub(pi);
+    const d = axis.length();
+    axis.normalize();
+    const color = BOND_COLORS[b.type];
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([pi, pj]);
+    const lineMat = b.type === 'ion'
+      ? new THREE.LineDashedMaterial({ color, dashSize: 0.45, gapSize: 0.35, transparent: true, opacity: 0.85 })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.28 });
+    disp.push(lineGeo, lineMat);
+    const line = new THREE.Line(lineGeo, lineMat);
+    if (b.type === 'ion') line.computeLineDistances();
+    molGroup.add(line);
+
+    const perp = Y_AXIS.clone().addScaledVector(axis, -axis.y);
+    if (perp.lengthSq() < 1e-4) perp.set(1, 0, 0);
+    perp.normalize();
+    let labelPos;
+    if (b.type === 'ion') {
+      labelPos = pi.clone().lerp(pj, 0.5).addScaledVector(perp, 0.8);
+      // overgedragen elektronen vertrekken uit de (nu lege) buitenste schil van het metaalatoom
+      const donor = info[b.donor];
+      const from = P[b.donor].clone().addScaledVector(P[b.acceptor].clone().sub(P[b.donor]).normalize(), donor.nR + MOL.gap + donor.a.shells.length * MOL.spacing);
+      for (let t = 0; t < b.order; t++) received[b.acceptor].push(from);
+    } else {
+      // gedeeld elektronenpaar op de snijcirkel van de twee valentieschillen
+      const x = (d * d + ri * ri - rj * rj) / (2 * d);
+      const rho = Math.sqrt(Math.max(ri * ri - x * x, 0.3));
+      const center = pi.clone().addScaledVector(axis, x);
+      const q = new THREE.Quaternion().setFromUnitVectors(Y_AXIS, axis);
+      addRing(center, q, rho, color, 0.8);
+      view.tracks.push({ center, q, r: rho, count: 2 * b.order, speed: 1.7, phase: b.i * 0.7 + b.j, bond: true });
+      labelPos = center.clone().addScaledVector(perp, rho + 0.4);
+    }
+    const A = mol.atoms[b.i].el.symbol, B = mol.atoms[b.j].el.symbol;
+    const key = [A, B].sort().join() + b.order + b.type;
+    if (!labelled.has(key)) {
+      labelled.add(key);
+      const pair = b.type === 'ion' ? `${A}···${B}` : A + ['', '–', '=', '≡'][b.order] + B;
+      addLabel(`<span style="--c:#${new THREE.Color(color).getHexString()}">${pair} · ${C.BOND_TYPES[b.type].short}</span>`, 'bond-label', labelPos);
+    }
+  }
+  // de laatste elektronen in de buitenste schil van een negatief ion zijn de overgedragen elektronen
+  for (const t of view.tracks) {
+    const a = mol.atoms[t.atom];
+    if (t.atom != null && a && a.ion < 0 && t.shell === a.shells.length - 1) t.moved = received[t.atom];
+  }
+
+  // dipoolpijl (wijst naar de δ−-kant)
+  if (mol.dipole) {
+    const dir = new THREE.Vector3(...mol.dipole);
+    const len = Math.max(4, fit * 0.9);
+    const arrow = new THREE.ArrowHelper(dir, dir.clone().multiplyScalar(-len / 2), len, 0xffd166, len * 0.14, len * 0.07);
+    for (const m of [arrow.line.material, arrow.cone.material]) { m.depthTest = false; m.transparent = true; disp.push(m); }
+    arrow.renderOrder = 5;
+    arrow.line.renderOrder = arrow.cone.renderOrder = 5;
+    molGroup.add(arrow);
+    const lbl = addLabel('<span>dipool</span>', 'dipole-label', dir.clone().multiplyScalar(len / 2 + 0.6));
+    view.dipole = [arrow, lbl];
+  }
+
+  // elektronen tellen en kleuren
+  let n = 0;
+  const moved = new Set();
+  for (const t of view.tracks) {
+    for (let j = 0; j < t.count; j++, n++) if (t.moved && j >= t.count - t.moved.length) moved.add(n);
+  }
+  eCore.count = n;
+  eGeo.setDrawRange(0, n);
+  paintElectrons(n, (i) => moved.has(i));
+
+  state.fitRadius = fit + 0.5;
+  state.eSizeTarget = 0.15 + 0.008 * Math.min(fit, 32);
+  applyMoleculeVisibility();
+  fitCamera({ resetDir: first, instant: first });
+}
+
+function applyMoleculeVisibility() {
+  const view = state.molView;
+  if (!view) return;
+  for (const r of view.rings) r.visible = state.showShells;
+  for (const s of view.spheres) {
+    const a = s.atom;
+    const sign = Math.sign(a.ion || a.delta || a.formal);
+    const u = s.mesh.material.uniforms;
+    s.mesh.visible = state.showShells || state.showCharges;
+    if (state.showCharges && sign) {
+      u.uColor.value.copy(sign > 0 ? CHARGE_COLORS.plus : CHARGE_COLORS.minus);
+      u.uStrength.value = 1.6;
+    } else {
+      u.uColor.value.copy(CHARGE_COLORS.neutral);
+      u.uStrength.value = 1;
+    }
+  }
+  if (view.dipole) for (const o of view.dipole) o.visible = state.showCharges;
+}
+
+const easeInOut = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+function updateMolecule(dt, k) {
+  const view = state.molView;
+  if (!view) return;
+  view.nucScale += (MOL.nucleon - view.nucScale) * k;
+  for (const g of view.nuclei) g.scale.setScalar(view.nucScale);
+  view.time += dt;
+  const move = easeInOut(Math.min(1, Math.max(0, (view.time - 0.6) / 1.8)));
+  const es = state.eSize;
+  let i = 0;
+  for (const t of view.tracks) {
+    const firstMoved = t.moved ? t.count - t.moved.length : Infinity;
+    for (let j = 0; j < t.count; j++, i++) {
+      const ang = t.phase + state.eTime * t.speed + (j * Math.PI * 2) / t.count;
+      tmpV.set(Math.cos(ang) * t.r, 0, Math.sin(ang) * t.r).applyQuaternion(t.q).add(t.center);
+      if (j >= firstMoved && move < 1) {
+        // overgedragen elektron vliegt in een boogje van het metaal naar het niet-metaal
+        tmpV2.copy(t.moved[j - firstMoved]).lerp(tmpV, move);
+        tmpV2.y += Math.sin(Math.PI * move) * 2.5;
+        tmpV.copy(tmpV2);
+      }
+      ePos[3 * i] = tmpV.x; ePos[3 * i + 1] = tmpV.y; ePos[3 * i + 2] = tmpV.z;
+      tmpM.makeScale(es, es, es).setPosition(tmpV);
+      eCore.setMatrixAt(i, tmpM);
+    }
+  }
+  eGeo.attributes.position.needsUpdate = true;
+  eCore.instanceMatrix.needsUpdate = true;
+  eGlow.material.size = es * 6;
 }
 
 // ---------- Animatie ----------
@@ -1426,19 +2329,10 @@ function frame(now) {
   last = now;
   const k = 1 - Math.exp(-dt * 7);
 
-  state.nucleonR += (state.nucleonRTarget - state.nucleonR) * k;
-  nucleusGroup.scale.setScalar(state.nucleonR);
-  nucLabel.position.set(0, state.nucleusUnits * state.nucleonR + 0.25, 0);
   state.eSize += (state.eSizeTarget - state.eSize) * k;
-  for (const o of state.orbits) {
-    o.a += (o.aT - o.a) * k;
-    o.ecc += (o.eccT - o.ecc) * k;
-    o.ring.scale.set(o.a, 1, o.a * Math.sqrt(1 - o.ecc * o.ecc));
-    o.ring.position.x = -o.a * o.ecc;
-    orbitPoint(o, o.labelE, o.label.position);
-  }
   if (!state.paused) state.eTime += dt * state.speed;
-  updateElectrons();
+  if (state.mode === 'molecule') updateMolecule(dt, k);
+  else updateAtom(k);
 
   stepTween(dt);
   controls.update(dt);
@@ -1452,6 +2346,20 @@ function frame(now) {
     fpsFrames = 0;
     fpsTime = 0;
   }
+}
+
+function updateAtom(k) {
+  state.nucleonR += (state.nucleonRTarget - state.nucleonR) * k;
+  nucleusGroup.scale.setScalar(state.nucleonR);
+  nucLabel.position.set(0, state.nucleusUnits * state.nucleonR + 0.25, 0);
+  for (const o of state.orbits) {
+    o.a += (o.aT - o.a) * k;
+    o.ecc += (o.eccT - o.ecc) * k;
+    o.ring.scale.set(o.a, 1, o.a * Math.sqrt(1 - o.ecc * o.ecc));
+    o.ring.position.x = -o.a * o.ecc;
+    orbitPoint(o, o.labelE, o.label.position);
+  }
+  updateElectrons();
 }
 
 function resize() {
@@ -1481,10 +2389,16 @@ $('btn-pause').addEventListener('click', (e) => {
 $('tgl-shells').addEventListener('change', (e) => {
   state.showShells = e.target.checked;
   for (const o of state.orbits) o.ring.visible = state.showShells;
+  applyMoleculeVisibility();
   labelRenderer.domElement.classList.toggle('no-shells', !state.showShells);
 });
 $('tgl-labels').addEventListener('change', (e) => {
   labelRenderer.domElement.style.display = e.target.checked ? '' : 'none';
+});
+$('tgl-charges').addEventListener('change', (e) => {
+  state.showCharges = e.target.checked;
+  labelRenderer.domElement.classList.toggle('show-charges', state.showCharges);
+  applyMoleculeVisibility();
 });
 $('tgl-enlarge').addEventListener('change', (e) => {
   state.nucleonRTarget = e.target.checked ? NUCLEON_R.enlarged : NUCLEON_R.normal;
@@ -1500,10 +2414,13 @@ for (const b of document.querySelectorAll('[data-model]')) {
   b.disabled = false;
 }
 try { if (localStorage.getItem('atoommodel-model') === 'sommerfeld') setModel('sommerfeld'); } catch (e) { /* geen opslag beschikbaar */ }
-for (const id of ['btn-reset', 'btn-rotate', 'btn-pause', 'tgl-shells', 'tgl-labels', 'tgl-enlarge', 'speed']) $(id).disabled = false;
+for (const id of ['btn-reset', 'btn-rotate', 'btn-pause', 'tgl-shells', 'tgl-labels', 'tgl-enlarge', 'tgl-charges', 'speed']) $(id).disabled = false;
 
-window.AtomViewer = { load };
-if (window.App && window.App.current) load(window.App.current);
+window.AtomViewer = { load, loadMolecule };
+if (window.App && window.App.current) {
+  if (window.App.current.kind === 'molecule') loadMolecule(window.App.current);
+  else load(window.App.current);
+}
 requestAnimationFrame(frame);
 </script>
 </body>
