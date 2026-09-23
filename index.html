@@ -957,8 +957,10 @@
     ion: { nl: 'ionbinding', short: 'ionbinding', en: 'ionisch' },
     metaal: { nl: 'metaalbinding', short: 'metaalbinding', en: 'metallisch' },
   };
+  // ΔEN afgerond op 2 decimalen zoals in de tabel (anders geeft 3,44 − 3,04 = 0,3999… een apolaire N–O-binding)
+  const dENof = (a, b) => Math.round(Math.abs(a.en_pauling - b.en_pauling) * 100) / 100;
   function classifyBond(a, b) {
-    const d = Math.abs(a.en_pauling - b.en_pauling);
+    const d = dENof(a, b);
     if (isMetal(a) && isMetal(b)) return 'metaal';
     if (isMetal(a) !== isMetal(b) && d > 1.7) return 'ion';
     return d < 0.4 ? 'apolair' : 'polair';
@@ -979,6 +981,17 @@
     { f: 'C2H5OH', nl: 'ethanol', en: 'ethanol', alias: ['alcohol'], atoms: 'C C O H H H H H H', bonds: '0-1 1-2 0-3 0-4 0-5 1-6 1-7 2-8' },
     { f: 'CH3COOH', nl: 'ethaanzuur', en: 'acetic acid', alias: ['azijnzuur'], atoms: 'C C O O H H H H', bonds: '0-1 1=2 1-3 3-7 0-4 0-5 0-6' },
     { f: 'CO(NH2)2', nl: 'ureum', en: 'urea', atoms: 'C O N N H H H H', bonds: '0=1 0-2 0-3 2-4 2-5 3-6 3-7' },
+    // zuren
+    { f: 'H2SO4', nl: 'zwavelzuur', en: 'sulfuric acid', atoms: 'S O O O O H H', bonds: '0=1 0=2 0-3 0-4 3-5 4-6' },
+    { f: 'HNO3', nl: 'salpeterzuur', en: 'nitric acid', atoms: 'N O O O H', bonds: '0=1 0-2 0-3 3-4', formal: '1 0 -1 0 0' },
+    { f: 'H2CO3', nl: 'koolzuur', en: 'carbonic acid', atoms: 'C O O O H H', bonds: '0=1 0-2 0-3 2-4 3-5' },
+    { f: 'H3PO4', nl: 'fosforzuur', en: 'phosphoric acid', alias: ['orthofosforzuur'], atoms: 'P O O O O H H H', bonds: '0=1 0-2 0-3 0-4 2-5 3-6 4-7' },
+    // samengestelde ionen waarin H aan O vastzit (de andere bouwt buildIon automatisch op); namen staan in POLY_IONS
+    { f: 'HCO3', charge: -1, atoms: 'C O O O H', bonds: '0=1 0-2 0-3 3-4', formal: '0 0 -1 0 0' },
+    { f: 'HSO4', charge: -1, atoms: 'S O O O O H', bonds: '0=1 0=2 0-3 0-4 4-5', formal: '0 0 0 -1 0 0' },
+    { f: 'HPO4', charge: -2, atoms: 'P O O O O H', bonds: '0=1 0-2 0-3 0-4 4-5', formal: '0 0 -1 -1 0 0' },
+    { f: 'H2PO4', charge: -1, atoms: 'P O O O O H H', bonds: '0=1 0-2 0-3 0-4 3-5 4-6', formal: '0 0 -1 0 0 0 0' },
+    { f: 'CH3COO', charge: -1, atoms: 'C C O O H H H', bonds: '0-1 1=2 1-3 0-4 0-5 0-6', formal: '0 0 0 -1 0 0 0' },
   ];
   // Namen voor moleculen die automatisch opgebouwd worden: [formule, NL, EN, extra namen…]
   const MOL_NAMED = [
@@ -1005,7 +1018,28 @@
     ['MgO', 'magnesiumoxide', 'magnesium oxide'], ['CaO', 'calciumoxide', 'calcium oxide', 'ongebluste kalk'],
     ['MgCl2', 'magnesiumchloride', 'magnesium chloride'], ['CaCl2', 'calciumchloride', 'calcium chloride'],
     ['Na2O', 'natriumoxide', 'sodium oxide'], ['K2O', 'kaliumoxide', 'potassium oxide'],
+    // extra namen voor zouten met een samengesteld ion (de systematische naam wordt automatisch gemaakt)
+    ['CaCO3', 'calciumcarbonaat', 'calcium carbonate', 'kalksteen', 'krijt', 'marmer', 'limestone'],
+    ['NaHCO3', 'natriumwaterstofcarbonaat', 'sodium hydrogen carbonate', 'zuiveringszout', 'baking soda', 'natriumbicarbonaat', 'sodium bicarbonate'],
+    ['Na2CO3', 'natriumcarbonaat', 'sodium carbonate', 'soda'], ['NH4Cl', 'ammoniumchloride', 'ammonium chloride', 'salmiak'],
+    ['Ca(OH)2', 'calciumhydroxide', 'calcium hydroxide', 'gebluste kalk', 'kalkwater'], ['NaOH', 'natriumhydroxide', 'sodium hydroxide', 'caustische soda'],
   ];
+
+  // Samengestelde ionen: [formule, lading, NL-stam, EN, extra namen…]. Die stam dient ook voor de naam van een zout.
+  const POLY_IONS = [
+    ['NH4', 1, 'ammonium', 'ammonium'], ['H3O', 1, 'oxonium', 'hydronium'],
+    ['OH', -1, 'hydroxide', 'hydroxide'], ['CN', -1, 'cyanide', 'cyanide'],
+    ['NO3', -1, 'nitraat', 'nitrate'], ['NO2', -1, 'nitriet', 'nitrite'],
+    ['CO3', -2, 'carbonaat', 'carbonate'], ['HCO3', -1, 'waterstofcarbonaat', 'hydrogen carbonate', 'bicarbonaat', 'bicarbonate'],
+    ['SO4', -2, 'sulfaat', 'sulfate'], ['HSO4', -1, 'waterstofsulfaat', 'hydrogen sulfate'], ['SO3', -2, 'sulfiet', 'sulfite'],
+    ['PO4', -3, 'fosfaat', 'phosphate'], ['HPO4', -2, 'waterstoffosfaat', 'hydrogen phosphate'],
+    ['H2PO4', -1, 'diwaterstoffosfaat', 'dihydrogen phosphate'], ['CH3COO', -1, 'acetaat', 'acetate', 'ethanoaat', 'ethanoate'],
+    ['ClO', -1, 'hypochloriet', 'hypochlorite'], ['ClO3', -1, 'chloraat', 'chlorate'], ['ClO4', -1, 'perchloraat', 'perchlorate'],
+  ].map(([f, q, nl, en, ...alias]) => ({ f, q, nl, en, alias }));
+  // Eenatomige negatieve ionen in de naam van een zout
+  const ANION_NL = { H: 'hydride', F: 'fluoride', Cl: 'chloride', Br: 'bromide', I: 'jodide', O: 'oxide', S: 'sulfide', N: 'nitride', P: 'fosfide' };
+  const ANION_EN = { H: 'hydride', F: 'fluoride', Cl: 'chloride', Br: 'bromide', I: 'iodide', O: 'oxide', S: 'sulfide', N: 'nitride', P: 'phosphide' };
+  const ionWord = (stem) => stem + (/[aeiou]$/.test(stem) ? '-ion' : 'ion'); // hydroxide-ion, sulfaation
 
   const SUB_IN = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9' };
   const nameKey = (s) => fold(s).replace(/[\s\-–()₂]/g, '');
@@ -1046,17 +1080,26 @@
   }
   const signature = (counts) => counts.map(([s, c]) => s + c).sort().join('');
 
+  // Sleutels: signatuur + lading, bv. "C1O3|-2"
   const LIB_BY_SIG = {}, MOL_BY_NAME = {}, NAME_BY_SIG = {};
+  const sigKey = (counts, q = 0) => signature(counts) + '|' + q;
   for (const m of MOL_LIBRARY) {
     const counts = [];
     for (const sym of m.atoms.split(' ')) { const h = counts.find((x) => x[0] === sym); if (h) h[1]++; else counts.push([sym, 1]); }
-    LIB_BY_SIG[signature(counts)] = m;
-    NAME_BY_SIG[signature(counts)] = { nl: m.nl, en: m.en };
+    LIB_BY_SIG[sigKey(counts, m.charge || 0)] = m;
+    if (!m.nl) continue;
+    NAME_BY_SIG[sigKey(counts)] = { nl: m.nl, en: m.en };
     for (const n of [m.nl, m.en, ...(m.alias || [])]) MOL_BY_NAME[nameKey(n)] = m.f;
   }
   for (const [f, nl, en, ...alias] of MOL_NAMED) {
-    NAME_BY_SIG[signature(parseFormula(f))] = { nl, en };
+    NAME_BY_SIG[sigKey(parseFormula(f))] = { nl, en };
     for (const n of [nl, en, ...alias]) MOL_BY_NAME[nameKey(n)] = f;
+  }
+  for (const ion of POLY_IONS) {
+    ion.counts = parseFormula(ion.f);
+    const f = `${ion.f}^${ionSuffix(ion.q)}`;
+    NAME_BY_SIG[sigKey(ion.counts, ion.q)] = { nl: ionWord(ion.nl), en: ion.en + ' ion' };
+    for (const n of [ion.nl, ionWord(ion.nl), ion.en, ion.en + ' ion', ...ion.alias]) MOL_BY_NAME[nameKey(n)] = f;
   }
 
   // Automatische lewisstructuur: twee atomen, of één centraal atoom met eindstandige atomen.
@@ -1085,7 +1128,12 @@
       const bonds = atoms.slice(1).map((_, k) => ({ i: 0, j: k + 1, order: transfer }));
       return { atoms, bonds, ionic: true };
     }
-    if (metals.length && els.length > 2) return { error: 'Verbindingen van een metaal met meerdere niet-metalen (zoals NaOH) worden nog niet ondersteund.' };
+    // Zout met een samengesteld ion: NaOH, CaCO3, Na2SO4, NH4Cl, (NH4)2SO4 …
+    if (metals.length || els.some(([e]) => e.symbol === 'N')) {
+      const salt = buildSalt(counts);
+      if (salt) return salt;
+    }
+    if (metals.length) return { error: `Dit zout kan ik niet opsplitsen in een positief ion en één soort negatief ion (zoals OH⁻, NO₃⁻, CO₃²⁻, SO₄²⁻ of PO₄³⁻).` };
     if (total === 2) {
       const a = els[0][0], b = els.length > 1 ? els[1][0] : els[0][0];
       const na = needOf(a), nb = needOf(b);
@@ -1112,6 +1160,145 @@
     }
     return { atoms, bonds };
   }
+  // Samengesteld ion met één centraal atoom (NH4+, OH-, CN-, NO3-, SO4 2-): lewisstructuur met formele ladingen.
+  // Het centrale atoom houdt altijd valentie − lading − (som van de bindingen) elektronen vrij over. Een dubbele binding
+  // naar O die enkelvoudig wordt, zet een ⊖ op die O en een ⊕ bij het centrale atoom: zo komen de negatieve ladingen
+  // bij voorkeur op de eindstandige (meest elektronegatieve) atomen, en krijgt een atoom uit periode 2 nooit meer dan 8 elektronen.
+  function buildIon(counts, q, label) {
+    const els = counts.map(([s, c]) => [SYMBOLS[s], c]);
+    for (const [e] of els) {
+      if (isMetal(e)) return { error: `${label}: samengestelde ionen met een metaal (zoals ${e.symbol}) kan dit model niet opbouwen.` };
+      if (e.en_pauling == null) return { error: `Van ${e.nl} is geen elektronegativiteit bekend, daardoor kan ik het bindingstype niet bepalen.` };
+    }
+    const singles = els.filter(([e, c]) => c === 1 && e.Z > 1);
+    if (!singles.length) return null;
+    singles.sort((x, y) => capacityOf(y[0]) - capacityOf(x[0]) || x[0].en_pauling - y[0].en_pauling);
+    const center = singles[0][0];
+    const atoms = [{ el: center, formal: 0 }], bonds = [];
+    let skipped = false;
+    for (const [e, c] of els) {
+      for (let k = 0; k < c; k++) {
+        if (e === center && !skipped) { skipped = true; continue; }
+        const need = needOf(e);
+        if (need <= 0 || need > 3) return null;
+        atoms.push({ el: e, formal: 0 });
+        bonds.push({ i: 0, j: atoms.length - 1, order: need });
+      }
+    }
+    const N = bonds.reduce((t, b) => t + b.order, 0);
+    const free = valenceOf(center) - q - N;
+    const fail = { error: `${label} past niet in een eenvoudige lewisstructuur met ${center.symbol} als centraal atoom.` };
+    if (free < 0 || free % 2) return fail;
+    const reducible = bonds.filter((b) => b.order > 1).sort((x, y) => atoms[y.j].el.en_pauling - atoms[x.j].el.en_pauling);
+    const Rmax = reducible.reduce((t, b) => t + b.order - 1, 0);
+    const ok = (R) => {
+      const e = 2 * (N - R) + free; // elektronen rond het centrale atoom
+      return (center.Z > 10 || e <= 8) && (e >= 8 || valenceOf(center) < 4);
+    };
+    let best = null;
+    for (let R = 0; R <= Rmax; R++) {
+      if (!ok(R)) continue;
+      const score = Math.abs(q + R) + R; // som van de formele ladingen; bij gelijkstand op de eindstandige atomen
+      if (!best || score <= best.score) best = { R, score };
+    }
+    if (!best) return fail;
+    for (let R = best.R; R > 0;) {
+      for (const b of reducible) if (R > 0 && b.order > 1) { b.order--; atoms[b.j].formal--; R--; }
+    }
+    atoms[0].formal = q + best.R;
+    return { atoms, bonds };
+  }
+
+  // Structuur van één ion: eenatomig (Na+, Cl-), uit de bibliotheek (HCO3-) of automatisch (SO4 2-)
+  function ionStruct(f, q) {
+    if (SYMBOLS[f]) return { atoms: [{ el: SYMBOLS[f], ion: q }], bonds: [] };
+    const counts = parseFormula(f);
+    const lib = LIB_BY_SIG[sigKey(counts, q)];
+    return lib ? fromLibrary(lib) : buildIon(counts, q, formulaText(f, q));
+  }
+
+  // Zout met een samengesteld ion: zoek een positief ion (metaal of NH4+) en één soort negatief ion die samen de formule vormen
+  function buildSalt(counts) {
+    const have = Object.fromEntries(counts);
+    const take = (from, part, k) => {
+      const r = { ...from };
+      for (const [s, c] of part) { r[s] = (r[s] || 0) - c * k; if (r[s] < 0) return null; if (!r[s]) delete r[s]; }
+      return r;
+    };
+    const metals = counts.filter(([s]) => isMetal(SYMBOLS[s]));
+    if (metals.length > 1) return null;
+    const cations = [];
+    if (metals.length) {
+      const [s, n] = metals[0];
+      cations.push({ f: s, q: valenceOf(SYMBOLS[s]), counts: [[s, 1]], n, nl: SYMBOLS[s].nl, en: SYMBOLS[s].en.toLowerCase() });
+    } else {
+      const nh4 = POLY_IONS[0];
+      for (let n = 1; n <= Math.min(have.N || 0, Math.floor((have.H || 0) / 4)); n++) cations.push({ ...nh4, n });
+    }
+    const anions = [
+      ...POLY_IONS.filter((ion) => ion.q < 0),
+      ...counts.map(([s]) => SYMBOLS[s]).filter((e) => !isMetal(e) && needOf(e) >= 1 && needOf(e) <= 3)
+        .map((e) => ({ f: e.symbol, q: -needOf(e), counts: [[e.symbol, 1]], nl: ANION_NL[e.symbol] || e.nl + 'ide', en: ANION_EN[e.symbol] || e.en.toLowerCase() + 'ide' })),
+    ];
+    for (const cat of cations) {
+      const rest = take(have, cat.counts, cat.n);
+      if (!rest) continue;
+      for (const an of anions) {
+        const [s0, c0] = an.counts[0];
+        const m = (rest[s0] || 0) / c0;
+        if (!Number.isInteger(m) || m < 1) continue;
+        const left = take(rest, an.counts, m);
+        if (!left || Object.keys(left).length || cat.n * cat.q + m * an.q !== 0) continue;
+        return saltStruct(cat, an, m);
+      }
+    }
+    return null;
+  }
+
+  // Eén formule-eenheid: het ion dat één keer voorkomt in het midden, de andere ionen eromheen.
+  // Een ionbinding verbindt telkens de geladen atomen; het metaal geeft zijn elektronen aan de ⊖-atomen.
+  function saltStruct(cat, an, m) {
+    if (cat.n > 1 && m > 1) return { error: `Deze verhoudingsformule is te groot om als één eenheid te tonen: er zitten ${cat.n} positieve en ${m} negatieve ionen in.` };
+    const atoms = [], bonds = [], units = [];
+    const addUnit = (ion) => {
+      const st = ionStruct(ion.f, ion.q);
+      if (!st || st.error) return st || { error: `${formulaText(ion.f, ion.q)} kan ik niet opbouwen.` };
+      const base = atoms.length;
+      atoms.push(...st.atoms);
+      bonds.push(...st.bonds.map((b) => ({ ...b, i: b.i + base, j: b.j + base })));
+      const idx = st.atoms.map((_, k) => base + k);
+      const charged = (i) => Math.sign(atoms[i].ion || atoms[i].formal || 0) === Math.sign(ion.q);
+      const unit = { atoms: idx, charge: ion.q, f: ion.f, label: formulaText(ion.f, ion.q), nl: ionWord(ion.nl), contacts: idx.filter(charged) };
+      units.push(unit);
+      return unit;
+    };
+    // in het midden: het ion dat één keer voorkomt (bij NaOH, CaCO3: het samengestelde ion)
+    const [centerIon, other, n] = cat.n === 1 && (m > 1 || SYMBOLS[an.f]) ? [cat, an, m] : [an, cat, cat.n];
+    const center = addUnit(centerIon);
+    if (center.error) return center;
+    for (let k = 0; k < n; k++) {
+      const u = addUnit(other);
+      if (u.error) return u;
+      const [cu, au] = centerIon === cat ? [center, u] : [u, center];
+      bonds.push({ i: center.contacts[k % center.contacts.length], j: u.contacts[0], order: 1, link: true, label: `${cu.label}···${au.label}` });
+    }
+    // elektronenoverdracht: alleen van een metaal; eerst naar het ion waarmee het verbonden is
+    const transfers = [];
+    if (SYMBOLS[cat.f]) {
+      const neg = units.filter((u) => u.charge < 0);
+      const slots = new Map(neg.map((u) => [u, u.contacts.flatMap((i) => Array(Math.abs(atoms[i].ion || atoms[i].formal)).fill(i))]));
+      const linked = (u, a) => bonds.some((b) => b.link && u.atoms.includes(b.i) + u.atoms.includes(b.j) === 1 && (a.atoms.includes(b.i) || a.atoms.includes(b.j)));
+      for (const u of units.filter((x) => x.charge > 0)) {
+        const order = [...neg.filter((a) => linked(u, a)), ...neg.filter((a) => !linked(u, a))];
+        for (let e = 0; e < u.charge; e++) {
+          const a = order.find((x) => slots.get(x).length);
+          if (a) transfers.push({ from: u.atoms[0], to: slots.get(a).shift() });
+        }
+      }
+    }
+    return { atoms, bonds, units, transfers, name: { nl: cat.nl + an.nl, en: `${cat.en} ${an.en}` } };
+  }
+
   const ionFormula = (m, n, p, q) => {
     const g = (a, b) => (b ? g(b, a % b) : a);
     const k = g(p, q);
@@ -1135,22 +1322,28 @@
 
   // Structuur aanvullen: elektronen, vrije paren, bindingstypes, ladingen, geometrie en polariteit
   function analyze(struct, meta) {
-    const atoms = struct.atoms.map((a, idx) => ({ idx, el: a.el, formal: a.formal || 0, ion: 0, neighbors: [], orderSum: 0 }));
+    const atoms = struct.atoms.map((a, idx) => ({ idx, el: a.el, formal: a.formal || 0, ion: a.ion || 0, neighbors: [], orderSum: 0 }));
+    // b.link: ionbinding tussen twee ionen van een zout; die telt niet mee voor de ruimtelijke bouw van een ion
     const bonds = struct.bonds.map((b) => {
       const A = atoms[b.i].el, B = atoms[b.j].el;
-      const type = classifyBond(A, B);
-      atoms[b.i].neighbors.push(b.j);
-      atoms[b.j].neighbors.push(b.i);
-      return { ...b, type, dEN: Math.abs(A.en_pauling - B.en_pauling) };
+      const type = b.link ? 'ion' : classifyBond(A, B);
+      if (!b.link) {
+        atoms[b.i].neighbors.push(b.j);
+        atoms[b.j].neighbors.push(b.i);
+      }
+      return { ...b, type, dEN: dENof(A, B) };
     });
     const ionic = bonds.some((b) => b.type === 'ion');
+    const transfers = struct.transfers ? [...struct.transfers] : [];
     for (const b of bonds) {
+      if (b.link) continue;
       if (b.type === 'ion') {
         // elektronen gaan van het metaal naar het niet-metaal
         const [donor, acc] = isMetal(atoms[b.i].el) ? [b.i, b.j] : [b.j, b.i];
         b.donor = donor; b.acceptor = acc;
         atoms[donor].ion += b.order;
         atoms[acc].ion -= b.order;
+        for (let k = 0; k < b.order; k++) transfers.push({ from: donor, to: acc });
       } else {
         atoms[b.i].orderSum += b.order;
         atoms[b.j].orderSum += b.order;
@@ -1166,7 +1359,7 @@
       a.shells = shellCounts(a.config);
       const free = valenceOf(a.el) - a.formal - a.orderSum;
       a.lonePairs = a.ion ? 0 : free / 2;
-      if (!a.ion && (free < 0 || free % 2)) return { error: `${meta.formula} past niet in een eenvoudige lewisstructuur: ${a.el.symbol} houdt ${free} elektron(en) over (radicaal, of te veel bindingen). Ionen zoals NH₄⁺ worden nog niet ondersteund.` };
+      if (!a.ion && (free < 0 || free % 2)) return { error: `${formulaText(meta.formula, meta.charge)} past niet in een eenvoudige lewisstructuur: ${a.el.symbol} houdt ${free} elektron(en) over (radicaal, of te veel bindingen).` };
       a.valenceShell = a.shells.length - 1; // index van de buitenste schil
       const B = a.neighbors.length;
       a.shape = !a.ion && B >= 2 ? SHAPES[`${B},${a.lonePairs}`] || null : null;
@@ -1180,7 +1373,9 @@
       atoms[hi].delta--;
       b.plus = lo; b.minus = hi;
     }
-    const mol = { kind: 'molecule', ...meta, atoms, bonds, ionic, dihedral: struct.dihedral };
+    const charge = meta.charge || 0;
+    if (atoms.reduce((t, a) => t + (a.ion || a.formal), 0) !== charge) return { error: `De ladingen in ${formulaText(meta.formula, charge)} kloppen niet.` };
+    const mol = { kind: 'molecule', ...meta, charge, atoms, bonds, ionic, transfers, units: struct.units || null, dihedral: struct.dihedral };
     // geometrie met eenheidsafstanden voor de dipoolberekening
     const geo = embedMolecule(mol, () => 1);
     let mu = [0, 0, 0];
@@ -1191,10 +1386,11 @@
     }
     // formele ladingen (CO, O₃) verschuiven de lading ook: de pijl wijst naar de negatieve kant
     for (const a of atoms) if (a.formal) mu = vadd(mu, vmul(geo.positions[a.idx], -a.formal));
-    const mag = Math.hypot(...mu);
+    // een dipool hoort bij een neutraal molecuul; bij een ion of zout overheerst de lading
+    const mag = ionic || charge ? 0 : Math.hypot(...mu);
     mol.dipole = mag > 0.05 ? vnorm(mu) : null;
     mol.dipoleMagnitude = mag;
-    mol.polar = ionic ? null : mag > 0.05;
+    mol.polar = ionic || charge ? null : mag > 0.05;
     mol.totals = atoms.reduce((t, a) => ({ protons: t.protons + a.Z, neutrons: t.neutrons + a.N, electrons: t.electrons + a.electrons }), { protons: 0, neutrons: 0, electrons: 0 });
     return { molecule: mol };
   }
@@ -1237,6 +1433,7 @@
   // Plaatst atomen volgens VSEPR (ideale hoeken). lengthFn(i, j) geeft de afstand tussen gebonden atomen.
   // Met { planar: true } liggen alle atomen en vrije elektronenparen in het xy-vlak.
   function embedMolecule(mol, lengthFn, { planar = false } = {}) {
+    if (mol.units) return embedUnits(mol, lengthFn, planar);
     const n = mol.atoms.length;
     const positions = new Array(n), lonePairDirs = new Array(n);
     const deg = (i) => mol.atoms[i].neighbors.length;
@@ -1310,25 +1507,100 @@
     return { positions: positions.map((p) => vsub(p, cen)), lonePairDirs, root };
   }
 
-  function formulaHTML(f) { return f.replace(/(\d+)/g, '<sub>$1</sub>'); }
-  const formulaText = (f) => f.replace(/\d/g, (d) => SUB[d]);
+  // Zout met samengestelde ionen: elk ion apart volgens VSEPR, daarna de andere ionen rond het centrale ion (units[0]).
+  // Een ion ligt tegenover zijn geladen atoom: van het midden van het ion naar dat atoom en dan verder naar buiten.
+  function embedUnits(mol, lengthFn, planar) {
+    const positions = new Array(mol.atoms.length), lonePairDirs = new Array(mol.atoms.length);
+    const sub = mol.units.map((u) => {
+      const local = new Map(u.atoms.map((g, k) => [g, k]));
+      const atoms = u.atoms.map((g) => ({ ...mol.atoms[g], neighbors: mol.atoms[g].neighbors.map((j) => local.get(j)) }));
+      const geo = embedMolecule({ atoms }, (i, j) => lengthFn(u.atoms[i], u.atoms[j]), { planar });
+      return { u, local, pos: geo.positions, lp: geo.lonePairDirs };
+    });
+    const outward = (s, k, idx, total) => {
+      const p = s.pos[k];
+      if (Math.hypot(...p) > 0.3) return vnorm(p);
+      if (s.u.atoms.length === 1) return vnorm((planar ? TEMPLATES_2D : TEMPLATES)[Math.min(total, 6)][idx % 6] || [0, -1, 0]);
+      // geladen atoom in het midden (N in NH4+): de richting die zo ver mogelijk van zijn bindingen en vrije paren ligt
+      const dirs = [...mol.atoms[s.u.atoms[k]].neighbors.map((j) => vnorm(vsub(s.pos[s.local.get(j)], p))), ...s.lp[k]];
+      const cands = dirs.flatMap((a, x) => [vmul(a, -1), ...dirs.slice(x + 1).flatMap((b) => [vnorm(vadd(a, b)), vmul(vnorm(vadd(a, b)), -1)])]);
+      let best = [0, -1, 0], bestCos = Infinity;
+      for (const c of cands) {
+        if (Math.hypot(...c) < 0.5) continue;
+        const cos = Math.max(...dirs.map((d) => vdot(c, d)));
+        if (cos < bestCos - 1e-9) { bestCos = cos; best = c; }
+      }
+      return best;
+    };
+    const [c, ...others] = sub;
+    c.pos.forEach((p, k) => { positions[c.u.atoms[k]] = p; lonePairDirs[c.u.atoms[k]] = c.lp[k]; });
+    others.forEach((s, idx) => {
+      const b = mol.bonds.find((x) => x.link && (s.local.has(x.i) || s.local.has(x.j)));
+      const [cc, pc] = s.local.has(b.j) ? [b.i, b.j] : [b.j, b.i];
+      const d = outward(c, c.local.get(cc), idx, others.length);
+      const R = alignFn(outward(s, s.local.get(pc), 0, 1), vmul(d, -1));
+      const target = vadd(positions[cc], vmul(d, lengthFn(cc, pc)));
+      const anchor = R(s.pos[s.local.get(pc)]);
+      s.pos.forEach((p, k) => {
+        positions[s.u.atoms[k]] = vadd(vsub(R(p), anchor), target);
+        lonePairDirs[s.u.atoms[k]] = s.lp[k].map(R);
+      });
+    });
+    const cen = vmul(positions.reduce(vadd, [0, 0, 0]), 1 / positions.length);
+    return { positions: positions.map((p) => vsub(p, cen)), lonePairDirs, root: c.u.atoms[0] };
+  }
 
-  // Resultaat: null (geen molecuul → als atoom proberen), { molecule } of { error }
+  // Formule met cijfers als onderschrift en de lading als bovenschrift: "SO4", -2 → SO₄²⁻
+  const chargeSup = (q) => ionSuffix(q).replace('-', '−');
+  function formulaHTML(f, q = 0) { return f.replace(/(\d+)/g, '<sub>$1</sub>') + (q ? `<sup>${chargeSup(q)}</sup>` : ''); }
+  const formulaText = (f, q = 0) => f.replace(/\d/g, (d) => SUB[d]) + (q ? toSup(ionSuffix(q)) : '');
+
+  // Mogelijke lezingen van een lading achteraan een formule: [formule, lading].
+  // Expliciet (SO4^2-, SO4 2-, SO4(2-), [SO4]2-, SO₄²⁻) geeft één lezing; "NO3-" of "SO42-" is dubbelzinnig en geeft er twee.
+  function chargeReadings(raw) {
+    let s = String(raw).trim().replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+$/, (m) => '^' + [...m].map((c) => SUP_IN[c]).join(''));
+    s = s.replace(/[₀-₉]/g, (c) => SUB_IN[c]).replace(/[−–—‐]/g, '-').replace(/\s+/g, ' ');
+    const sign = (c) => (c === '-' ? -1 : 1);
+    let m;
+    if ((m = /^\[(.+)\]\s*(\d*)\s*([+-])$/.exec(s)) || (m = /^(.+?)\s*(?:\^|\s)\s*\(?(\d*)\s*([+-])\)?$/.exec(s)) || (m = /^(.+?)\s*[([]\s*(\d*)\s*([+-])\s*[)\]]$/.exec(s))) {
+      return [[m[1].trim(), sign(m[3]) * (+m[2] || 1)]];
+    }
+    if ((m = /^(.+?)\s*\^\s*([+-])\s*(\d+)$/.exec(s))) return [[m[1].trim(), sign(m[2]) * +m[3]]];
+    const out = [];
+    if ((m = /^(.+?)(\++|-+)$/.exec(s))) out.push([m[1], sign(m[2][0]) * m[2].length]);
+    if ((m = /^(.+?)(\d)([+-])$/.exec(s))) out.push([m[1], sign(m[3]) * +m[2]]);
+    return out.length ? out : [[s, 0]];
+  }
+  // Voor de voorbeeldknoppen: "SO4^2-" → SO₄²⁻ als HTML
+  const inputFormulaHTML = (raw) => { const [[f, q]] = chargeReadings(raw); return formulaHTML(f, q); };
+
+  // Resultaat: null (geen molecuul → als atoom proberen), { molecule } of { error }.
+  // Van alle lezingen van de lading wint een geldig molecuul/ion, dan een atoom(ion) (O2- = O²⁻), dan de eerste fout.
   function resolveMolecule(raw) {
     const input = String(raw || '').trim();
     if (!input) return null;
     const byName = MOL_BY_NAME[nameKey(input)];
-    const s = byName || input.replace(/[₀-₉]/g, (c) => SUB_IN[c]).replace(/\s+/g, '');
+    let error = null, atom = false;
+    for (const [f, q] of chargeReadings(byName || input)) {
+      const r = resolveFormula(f.replace(/\s+/g, ''), q);
+      if (r && r.molecule) return r;
+      if (!r) atom = true; else error = error || r;
+    }
+    return atom ? null : error;
+  }
+
+  function resolveFormula(s, q) {
     const counts = parseFormula(s);
     if (!counts) return null;
     const total = counts.reduce((a, [, c]) => a + c, 0);
-    const sig = signature(counts);
-    const lib = LIB_BY_SIG[sig];
+    const key = sigKey(counts, q);
+    const lib = LIB_BY_SIG[key];
     // "Fe", "U235", "C14", "H3": geen molecuul maar een atoom/isotoop (behalve bekende moleculen zoals O3)
     if (total < 2 || (counts.length === 1 && total !== 2 && !lib)) return null;
-    const names = NAME_BY_SIG[sig];
-    const meta = { formula: s, nl: names ? names.nl : null, en: names ? names.en : null };
-    let struct = lib ? fromLibrary(lib) : buildGeneric(counts);
+    const meta = { formula: s, charge: q, nl: null, en: null };
+    let struct = lib ? fromLibrary(lib) : q ? buildIon(counts, q, formulaText(s, q)) : buildGeneric(counts);
+    const names = NAME_BY_SIG[key] || (struct && struct.name);
+    if (names) Object.assign(meta, { nl: names.nl, en: names.en });
     if (lib) meta.formula = lib.f;
     if (!struct) {
       return { error: `${formulaText(s)} kan ik niet automatisch opbouwen: dit model tekent moleculen met één centraal atoom (zoals CH₄, SF₆), twee atomen (HCl, N₂), eenvoudige zouten (NaCl, CaCl₂) en een reeks bekende moleculen (ethanol, ethaanzuur, ureum, …).` };
@@ -1339,7 +1611,7 @@
   }
 
   window.AtomCore = {
-    resolveMolecule, embedMolecule, BOND_TYPES, formulaHTML, formulaText, isMetal,
+    resolveMolecule, embedMolecule, BOND_TYPES, formulaHTML, formulaText, inputFormulaHTML, isMetal,
     ELEMENTS, CATEGORIES, EXCEPTIONS, resolve, suggestions, configString, shellCounts, subshellList, ionConfig, neutralConfig,
     formatHalfLife, packNucleus, toSup, toSub, cap, chargeText, ionSuffix, countElectrons,
   };
@@ -1354,7 +1626,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const EXAMPLES = ['H', 'He', 'C-14', 'O', 'Fe', 'Au', 'U-235', 'U-238', 'Na+', 'Cl-'];
-  const MOL_EXAMPLES = ['H2O', 'CO2', 'CH4', 'NH3', 'O2', 'N2', 'HCl', 'NaCl', 'MgO', 'CaCl2', 'C2H4', 'C2H5OH', 'SF6'];
+  const MOL_EXAMPLES = ['H2O', 'CO2', 'CH4', 'NH3', 'N2', 'HCl', 'NaCl', 'CaCl2', 'C2H5OH', 'NH4+', 'SO4^2-', 'NaOH', 'CaCO3'];
   const SHELL_NAMES = 'KLMNOPQR';
 
   function nuclideHTML(a) {
@@ -1499,9 +1771,15 @@
 
   function renderMoleculePanel(m) {
     const atoms = m.atoms;
-    document.documentElement.style.setProperty('--accent', m.ionic ? '#ff8787' : '#38d9a9');
-    const name = m.nl ? C.cap(m.nl) : C.formulaText(m.formula);
-    const kind = m.ionic ? 'zout · ionverbinding' : m.polar ? 'molecuul · polair' : 'molecuul · apolair';
+    document.documentElement.style.setProperty('--accent', m.ionic ? '#ff8787' : m.charge ? '#ffd166' : '#38d9a9');
+    const formula = C.formulaText(m.formula, m.charge);
+    const name = m.nl ? C.cap(m.nl) : formula;
+    const chargeWord = (q) => `${Math.abs(q)}${q > 0 ? '+' : '−'}`;
+    const kind = m.ionic ? 'zout · ionverbinding' : m.charge ? `samengesteld ion · lading ${chargeWord(m.charge)}` : m.polar ? 'molecuul · polair' : 'molecuul · apolair';
+    // ionen in een zout, bv. 2 × Na⁺, 1 × SO₄²⁻
+    const ionGroups = [];
+    for (const u of m.units || []) { const g = ionGroups.find((x) => x.label === u.label); if (g) g.n++; else ionGroups.push({ label: u.label, n: 1, u }); }
+    ionGroups.sort((x, y) => y.u.charge - x.u.charge); // positief ion eerst
 
     // samenstelling per element
     const counts = [];
@@ -1517,8 +1795,21 @@
       const g = groups.find((x) => x.key === key);
       if (g) g.n++; else groups.push({ key, n: 1, b, A, B, lo, hi });
     }
+    const cation = ionGroups.find((g) => g.u.charge > 0), anion = ionGroups.find((g) => g.u.charge < 0);
+    const metalGives = m.transfers.length && m.units;
     const bondRows = groups.map(({ n, b, A, B, lo, hi }) => {
       const t = C.BOND_TYPES[b.type];
+      if (b.link) {
+        const detail = metalGives
+          ? `${cation.n > 1 ? 'Elk ' : 'Het '}${atoms[m.transfers[0].from].el.symbol}-atoom staat ${cation.u.charge} elektron${cation.u.charge > 1 ? 'en' : ''} af. ${anion.n > 1 ? 'Elke' : 'De'} atoomgroep ${C.formulaText(anion.u.f)} krijgt er ${-anion.u.charge} bij en wordt zo het samengestelde ion ${anion.label}.`
+          : `${cation.label} en ${anion.label} zijn allebei al ionen: er gaan geen elektronen over. (NH₄⁺ ontstaat doordat NH₃ een H⁺ opneemt.)`;
+        return `
+        <div class="bond-row">
+          <div class="head"><span class="pair">${n > 1 ? n + ' × ' : ''}${b.label}</span><span class="btype ion">${t.nl}</span></div>
+          <div class="note">${detail}</div>
+          <div class="note">Het positieve en het negatieve ion trekken elkaar aan. Binnen een samengesteld ion zitten gewone atoombindingen; de stippellijn verbindt de atomen die de lading dragen.</div>
+        </div>`;
+      }
       const pair = b.type === 'ion' ? `${A.symbol}···${B.symbol}` : A.symbol + ['', '–', '=', '≡'][b.order] + B.symbol;
       let detail;
       if (b.type === 'ion') {
@@ -1539,16 +1830,19 @@
       let txt = null, cls = '';
       if (a.ion) { txt = a.el.symbol + C.toSup(C.ionSuffix(a.ion)); cls = a.ion > 0 ? 'pos' : 'neg'; }
       else if (a.delta) { txt = `${a.el.symbol}: ${deltaText(a.delta)}`; cls = a.delta > 0 ? 'pos' : 'neg'; }
-      if (a.formal) { txt = (txt ? txt + ', ' : a.el.symbol + ': ') + `formeel ${a.formal > 0 ? '+' : '−'}1`; cls = cls || (a.formal > 0 ? 'pos' : 'neg'); }
+      if (a.formal) { txt = (txt ? txt + ', ' : a.el.symbol + ': ') + `formeel ${a.formal > 0 ? '+' : '−'}${Math.abs(a.formal)}`; cls = cls || (a.formal > 0 ? 'pos' : 'neg'); }
       if (txt && !chargeItems.some((c) => c.txt === txt)) chargeItems.push({ txt, cls });
     }
+    for (const g of ionGroups.slice().reverse()) if (!chargeItems.some((c) => c.txt === g.label)) chargeItems.unshift({ txt: g.label, cls: g.u.charge > 0 ? 'pos' : 'neg' });
     const hasPolar = m.bonds.some((b) => b.type === 'polair');
     let polarity;
     if (m.ionic) polarity = `Een zout: de ionen trekken elkaar aan door hun tegengestelde lading. In werkelijkheid vormen ze een ionrooster met heel veel ionen; hier zie je één formule-eenheid.`;
+    else if (m.charge) polarity = `Een samengesteld ion: een groep atomen met atoombindingen die samen ${Math.abs(m.charge)} elektron${Math.abs(m.charge) > 1 ? 'en' : ''} ${m.charge < 0 ? 'meer' : 'minder'} heeft dan protonen. De lading hoort bij het hele ion; in de lewisstructuur staat ze op de atomen met een formele lading. Of het ion polair is, speelt geen rol: de lading overheerst.`;
     else if (m.polar) polarity = `Het molecuul is <strong>polair</strong>: de ladingen liggen niet symmetrisch, dus er is een dipool. De gele pijl wijst naar de negatieve kant.`;
     else if (hasPolar) polarity = `Het molecuul is <strong>apolair</strong>: de bindingen zijn wel polair, maar ze liggen symmetrisch, zodat hun dipolen elkaar opheffen.`;
     else polarity = `Het molecuul is <strong>apolair</strong>: er zijn geen polaire bindingen.`;
-    if (atoms.some((a) => a.formal)) polarity += ' Formele ladingen (⊕/⊖) volgen uit de lewisstructuur.';
+    if (m.units && atoms.some((a) => a.formal)) polarity += ' In een samengesteld ion staat de lading als formele lading (⊕/⊖) op de atomen die ze dragen.';
+    else if (!m.charge && atoms.some((a) => a.formal)) polarity += ' Formele ladingen (⊕/⊖) volgen uit de lewisstructuur.';
 
     // ruimtelijke bouw
     const centers = atoms.filter((a) => a.shape);
@@ -1557,12 +1851,12 @@
       .map((a) => `<div class="row"><span class="k">rond ${a.el.symbol}</span><span class="v"><strong>${a.shape}</strong> · ${a.neighbors.length} bindingen, ${a.lonePairs} vrij${a.lonePairs === 1 ? ' elektronenpaar' : 'e elektronenparen'}</span></div>`).join('');
     const shared = m.bonds.filter((b) => b.type !== 'ion').reduce((t, b) => t + b.order, 0);
     const lone = atoms.reduce((t, a) => t + (a.ion ? 0 : a.lonePairs), 0);
-    const moved = m.bonds.filter((b) => b.type === 'ion').reduce((t, b) => t + b.order, 0);
+    const moved = m.transfers.length;
 
     $('panel').innerHTML = `
       <section class="card hero">
         <div class="hero-text">
-          <div class="formula">${C.formulaHTML(m.formula)}</div>
+          <div class="formula">${C.formulaHTML(m.formula, m.charge)}</div>
           <h2 style="margin-top:4px">${esc(name)}${m.en ? `<span class="en">${esc(C.cap(m.en))}</span>` : ''}</h2>
           <div class="hero-row"><span class="chip">${kind}</span></div>
         </div>
@@ -1576,6 +1870,7 @@
           <div class="stat"><div class="k"><span class="dot n"></span>Neutronen</div><div class="v">${m.totals.neutrons}</div></div>
           <div class="stat"><div class="k"><span class="dot e"></span>Elektronen</div><div class="v">${m.totals.electrons}</div></div>
         </div>
+        ${ionGroups.length ? `<div class="row"><span class="k">Ionen</span><span class="v">${ionGroups.map((g) => `<strong>${g.n} × ${g.label}</strong>`).join(' en ')}</span></div>` : ''}
         <div class="el-list">${elButtons}</div>
         <p class="note">Klik op een element om het atoom apart te bekijken. Elk atoom is getoond met zijn standaardisotoop.</p>
       </section>
@@ -1596,9 +1891,10 @@
 
       <section class="card">
         <h3>Elektronen en ruimtelijke bouw</h3>
-        ${m.ionic ? `<div class="row"><span class="k">Overgedragen elektronen</span><span class="v"><strong>${moved}</strong></span></div>` : `
+        ${moved || m.ionic ? `<div class="row"><span class="k">Overgedragen elektronen</span><span class="v"><strong>${moved}</strong></span></div>` : ''}
+        ${shared ? `
         <div class="row"><span class="k">Gedeelde elektronenparen</span><span class="v"><strong>${shared}</strong></span></div>
-        <div class="row"><span class="k">Vrije elektronenparen</span><span class="v"><strong>${lone}</strong></span></div>`}
+        <div class="row"><span class="k">Vrije elektronenparen</span><span class="v"><strong>${lone}</strong></span></div>` : ''}
         ${shapeRows}
         ${shapeRows ? '<p class="note">Vorm volgens VSEPR, met ideale hoeken. In werkelijkheid duwen vrije elektronenparen de bindingen iets dichter samen (water: 104,5° in plaats van 109,5°).</p>' : ''}
       </section>
@@ -1625,9 +1921,9 @@
         Echte elektronen vormen wolken (orbitalen) en geen banen.
       </section>`;
 
-    $('caption').innerHTML = `<span class="formula" style="font-size:22px">${C.formulaHTML(m.formula)}</span>`;
+    $('caption').innerHTML = `<span class="formula" style="font-size:22px">${C.formulaHTML(m.formula, m.charge)}</span>`;
     $('caption').title = name;
-    document.title = `${C.formulaText(m.formula)} · Atoommodel 3D`;
+    document.title = `${formula} · Atoommodel 3D`;
   }
 
   function showMessage(kind, html) {
@@ -1690,7 +1986,7 @@
     for (const ex of list) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.innerHTML = box === 'mol-examples' ? C.formulaHTML(ex) : esc(ex);
+      b.innerHTML = box === 'mol-examples' ? C.inputFormulaHTML(ex) : esc(ex);
       b.addEventListener('click', () => go(ex));
       $(box).appendChild(b);
     }
@@ -2280,11 +2576,6 @@ function loadMolecule(mol) {
     if (b.type === 'ion') {
       l3 = P3[b.i].clone().lerp(P3[b.j], 0.5).addScaledVector(perp3, 0.8);
       l2 = P2[b.i].clone().lerp(P2[b.j], 0.5).addScaledVector(perp2, 0.8);
-      // overgedragen elektronen vertrekken uit de (nu lege) buitenste schil van het metaalatoom
-      const donor = info[b.donor];
-      const rFrom = donor.nR + MOL.gap + donor.a.shells.length * MOL.spacing;
-      const from = (P) => P[b.donor].clone().addScaledVector(P[b.acceptor].clone().sub(P[b.donor]).normalize(), rFrom);
-      for (let t = 0; t < b.order; t++) received[b.acceptor].push({ f3: from(P3), f2: from(P2) });
     } else {
       // 3D: gedeeld elektronenpaar op de snijcirkel van de twee valentieschillen
       const x = (d * d + ri * ri - rj * rj) / (2 * d);
@@ -2302,18 +2593,25 @@ function loadMolecule(mol) {
       l2 = c2.clone().addScaledVector(perp2, rho * 0.85 + 0.5);
     }
     const A = mol.atoms[b.i].el.symbol, B = mol.atoms[b.j].el.symbol;
-    const key = [A, B].sort().join() + b.order + b.type;
+    const key = b.label || [A, B].sort().join() + b.order + b.type;
     if (!labelled.has(key)) {
-      const pair = b.type === 'ion' ? `${A}···${B}` : A + ['', '–', '=', '≡'][b.order] + B;
+      const pair = b.label || (b.type === 'ion' ? `${A}···${B}` : A + ['', '–', '=', '≡'][b.order] + B);
       if (track) track.ownsLabel = true;
       labelled.set(key, addLabel(`<span style="--c:#${new THREE.Color(color).getHexString()}">${pair} · ${C.BOND_TYPES[b.type].short}</span>`, 'bond-label', l3, l2));
     }
     if (track && track.ownsLabel) track.label = labelled.get(key);
   }
-  // de laatste elektronen in de buitenste schil van een negatief ion zijn de overgedragen elektronen
+  // overgedragen elektronen vertrekken uit de (nu lege) buitenste schil van het metaalatoom
+  for (const { from: i, to: j } of mol.transfers) {
+    const rFrom = info[i].nR + MOL.gap + info[i].a.shells.length * MOL.spacing;
+    const from = (P) => P[i].clone().addScaledVector(P[j].clone().sub(P[i]).normalize(), rFrom);
+    received[j].push({ f3: from(P3), f2: from(P2) });
+  }
+  // ze komen terecht in de buitenste schil van een negatief ion, of (bij een samengesteld ion) in een vrij elektronenpaar van het ⊖-atoom
   for (const t of view.tracks) {
     const a = t.atom != null ? mol.atoms[t.atom] : null;
     if (t.kind === 'shell' && a.ion < 0 && t.shell === a.shells.length - 1) t.moved = received[t.atom];
+    if (t.kind === 'lone' && !a.ion && received[t.atom].length) t.moved = received[t.atom].splice(0, 1);
   }
 
   // dipoolpijl (wijst naar de δ−-kant); in 2D opnieuw berekend uit de vlakke ligging
@@ -2478,7 +2776,7 @@ function trackInfo(t) {
     const extra = t.moved ? ` (waarvan ${t.moved.length} overgedragen)` : '';
     return `<b>${SHELL_NAMES[t.shell]}-schil van ${sym(t.atom)}</b> · ${t.count} e⁻${extra}`;
   }
-  if (t.kind === 'lone') return `<b>Vrij elektronenpaar</b> van ${sym(t.atom)} · 2 e⁻, niet betrokken bij een binding`;
+  if (t.kind === 'lone') return `<b>Vrij elektronenpaar</b> van ${sym(t.atom)} · 2 e⁻, niet betrokken bij een binding${t.moved && t.moved.length ? ' (1 elektron komt van het metaal)' : ''}`;
   const b = t.bond, pair = mol.atoms[b.i].el.symbol + ['', '–', '=', '≡'][b.order] + mol.atoms[b.j].el.symbol;
   return `<b>${b.order > 1 ? b.order + ' gedeelde elektronenparen' : 'Gedeeld elektronenpaar'}</b> ${pair} · ${C.BOND_TYPES[b.type].nl} · ${2 * b.order} e⁻`;
 }
