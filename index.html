@@ -1648,6 +1648,9 @@
   try { initial = decodeURIComponent(location.hash.slice(1)) || 'C'; } catch (e) { /* ongeldige hash */ }
   input.value = initial;
   if (!App.show(initial)) App.show('C');
+  window.addEventListener('hashchange', () => {
+    try { const q = decodeURIComponent(location.hash.slice(1)); if (q) go(q); } catch (e) { /* ongeldige hash */ }
+  });
 
   // Als Three.js niet laadt (geen internet), een duidelijke melding tonen.
   setTimeout(() => {
@@ -2066,8 +2069,9 @@ function setMode(mode) {
   if (mode === 'atom') { clearMolecule(); state.mol = null; }
   else { clearOrbits(); state.atom = null; }
   const isMol = mode === 'molecule';
-  for (const b of document.querySelectorAll('[data-model]')) b.disabled = isMol;
-  $('tgl-enlarge').disabled = isMol;
+  // Bohr/Sommerfeld en "kern vergroten" gelden alleen voor één atoom
+  document.querySelector('.seg').hidden = isMol;
+  $('tgl-enlarge').closest('label').hidden = isMol;
   $('sw-charges').hidden = !isMol;
 }
 
