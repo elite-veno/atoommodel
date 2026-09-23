@@ -210,6 +210,21 @@
   .fps { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
   .hint { font-size: 12px; color: var(--faint); text-align: right; line-height: 1.5; }
   @media (max-width: 700px) { .hint { display: none; } .caption { font-size: 18px; } }
+  .hint-2d, .viewer.flat .hint-3d { display: none; }
+  .viewer.flat .hint-2d { display: inline; }
+  .label-layer.focus > div { opacity: .15; transition: opacity .2s; }
+  .label-layer.focus > div.sel { opacity: 1; }
+  .label-layer.focus > div.sel span { box-shadow: 0 0 0 1px var(--c, #fff), 0 0 14px var(--c, #7fe9ff); }
+  .sel-info {
+    position: absolute; top: 54px; left: 50%; transform: translateX(-50%); z-index: 3;
+    display: flex; align-items: center; gap: 10px; max-width: min(560px, calc(100% - 24px));
+    padding: 6px 8px 6px 14px; border-radius: 999px; font-size: 13.5px;
+    background: rgba(13, 19, 38, .92); border: 1px solid var(--accent); box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+  }
+  .sel-info b { color: var(--accent); }
+  .sel-info button { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1px solid #2a3558; background: transparent; font-size: 16px; line-height: 1; }
+  .sel-info button:hover { border-color: var(--accent); }
+  @media (max-width: 700px) { .sel-info { top: auto; bottom: 150px; border-radius: 12px; } }
   .viewer-msg {
     position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
     color: var(--muted); z-index: 1;
@@ -373,13 +388,26 @@
       <button type="button" class="tool" id="btn-rotate" aria-pressed="false" disabled>Automatisch roteren</button>
       <button type="button" class="tool" id="btn-pause" aria-pressed="false" disabled>Pauzeer elektronen</button>
     </div>
+    <div class="sel-info" id="sel-info" role="status" aria-live="polite" hidden>
+      <span id="sel-text"></span>
+      <button type="button" id="sel-close" aria-label="Selectie wissen" title="Selectie wissen (Esc)">×</button>
+    </div>
     <div class="ov ov-tr">
       <div class="caption" id="caption"></div>
       <div class="fps" id="fps"></div>
+      <div class="hint">
+        <span class="hint-3d">Muis: links = draaien · scroll = zoomen · rechts = verschuiven<br>
+        Touch: 1 vinger = draaien · 2 vingers = zoomen/verschuiven</span><span class="hint-2d">Muis: slepen = verschuiven · scroll = zoomen<br>
+        Touch: slepen = verschuiven · 2 vingers = zoomen</span><br>
+        Klik of tik op een baan om ze uit te lichten
+      </div>
     </div>
     <div class="ov ov-bl">
       <div class="controls">
-        <span class="seg" role="group" aria-label="Atoommodel"><span>Model</span><span class="seg-btns">
+        <span class="seg" id="seg-view" role="group" aria-label="Weergave"><span>Weergave</span><span class="seg-btns">
+          <button type="button" data-view="3d" aria-pressed="true" disabled>3D</button><button type="button" data-view="2d" aria-pressed="false" disabled>2D</button>
+        </span></span>
+        <span class="seg" id="seg-model" role="group" aria-label="Atoommodel"><span>Model</span><span class="seg-btns">
           <button type="button" data-model="bohr" aria-pressed="true" disabled>Bohr</button><button type="button" data-model="sommerfeld" aria-pressed="false" disabled>Sommerfeld</button>
         </span></span>
         <label class="switch"><input type="checkbox" id="tgl-shells" checked disabled>Schillen</label>
@@ -389,10 +417,6 @@
         <label class="speed">Snelheid <input type="range" id="speed" min="0.1" max="3" step="0.1" value="1" disabled aria-label="Snelheid van de elektronen"><output id="speed-out">1,0×</output></label>
       </div>
       <div class="scale-note">Niet op schaal: in werkelijkheid is de kern ongeveer 100.000 keer kleiner dan het atoom.</div>
-    </div>
-    <div class="ov ov-br hint">
-      Muis: links = draaien · scroll = zoomen · rechts = verschuiven<br>
-      Touch: 1 vinger = draaien · 2 vingers = zoomen/verschuiven
     </div>
   </section>
 
@@ -945,7 +969,7 @@
   const MOL_LIBRARY = [
     { f: 'CO', nl: 'koolstofmonoxide', en: 'carbon monoxide', atoms: 'C O', bonds: '0#1', formal: '-1 1' },
     { f: 'O3', nl: 'ozon', en: 'ozone', atoms: 'O O O', bonds: '0=1 0-2', formal: '1 0 -1' },
-    { f: 'H2O2', nl: 'waterstofperoxide', en: 'hydrogen peroxide', atoms: 'O O H H', bonds: '0-1 0-2 1-3' },
+    { f: 'H2O2', nl: 'waterstofperoxide', en: 'hydrogen peroxide', atoms: 'O O H H', bonds: '0-1 0-2 1-3', dihedral: 111 }, // scheef: H–O–O–H ≈ 111°, daardoor polair
     { f: 'N2H4', nl: 'hydrazine', en: 'hydrazine', atoms: 'N N H H H H', bonds: '0-1 0-2 0-3 1-4 1-5' },
     { f: 'C2H6', nl: 'ethaan', en: 'ethane', atoms: 'C C H H H H H H', bonds: '0-1 0-2 0-3 0-4 1-5 1-6 1-7' },
     { f: 'C2H4', nl: 'etheen', en: 'ethene', alias: ['ethyleen', 'ethylene'], atoms: 'C C H H H H', bonds: '0=1 0-2 0-3 1-4 1-5' },
@@ -1100,7 +1124,7 @@
       const [, i, op, j] = /^(\d+)([-=#])(\d+)$/.exec(b);
       return { i: +i, j: +j, order: { '-': 1, '=': 2, '#': 3 }[op] };
     });
-    return { atoms, bonds };
+    return { atoms, bonds, dihedral: m.dihedral };
   }
 
   const SHAPES = {
@@ -1156,7 +1180,7 @@
       atoms[hi].delta--;
       b.plus = lo; b.minus = hi;
     }
-    const mol = { kind: 'molecule', ...meta, atoms, bonds, ionic };
+    const mol = { kind: 'molecule', ...meta, atoms, bonds, ionic, dihedral: struct.dihedral };
     // geometrie met eenheidsafstanden voor de dipoolberekening
     const geo = embedMolecule(mol, () => 1);
     let mu = [0, 0, 0];
@@ -1204,23 +1228,36 @@
     6: [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]],
   };
 
+  // Vlakke variant (2D): elektronenparen gelijkmatig rond het atoom in het xy-vlak, zoals in een lewisstructuur
+  const TEMPLATES_2D = Object.fromEntries(Object.entries({
+    1: [-90], 2: [180, 0], 3: [-150, -30, 90], 4: [-135, -45, 45, 135],
+    5: [-162, -90, -18, 54, 126], 6: [-150, -90, -30, 30, 90, 150],
+  }).map(([k, degs]) => [k, degs.map((d) => [Math.cos((d * Math.PI) / 180), Math.sin((d * Math.PI) / 180), 0])]));
+
   // Plaatst atomen volgens VSEPR (ideale hoeken). lengthFn(i, j) geeft de afstand tussen gebonden atomen.
-  function embedMolecule(mol, lengthFn) {
+  // Met { planar: true } liggen alle atomen en vrije elektronenparen in het xy-vlak.
+  function embedMolecule(mol, lengthFn, { planar = false } = {}) {
     const n = mol.atoms.length;
     const positions = new Array(n), lonePairDirs = new Array(n);
     const deg = (i) => mol.atoms[i].neighbors.length;
     let root = 0;
     for (let i = 1; i < n; i++) if (deg(i) > deg(root)) root = i;
     positions[root] = [0, 0, 0];
+    // aantal atomen in elke zijtak (vanaf de wortel gezien)
+    const size = new Array(n).fill(1);
+    (function count(i, p) { for (const j of mol.atoms[i].neighbors) if (j !== p) { count(j, i); size[i] += size[j]; } })(root, null);
+    const permutations = (arr) => (arr.length < 2 ? [arr] : arr.flatMap((x, k) => permutations([...arr.slice(0, k), ...arr.slice(k + 1)]).map((p) => [x, ...p])));
 
     function place(i, parent, ref) {
       const a = mol.atoms[i];
       const B = a.neighbors.length, L = a.ion ? 0 : a.lonePairs, SN = B + L;
       if (!SN) { lonePairDirs[i] = []; return; }
-      let slots = TEMPLATES[SN].map((v) => vnorm(v));
+      let slots = (planar ? TEMPLATES_2D : TEMPLATES)[SN].map((v) => vnorm(v));
       // vrije paren: bij 5 en 6 elektronenparen op de voorkeursposities (equatoriaal / trans), anders achteraan
       const idx = slots.map((_, k) => k);
-      const lpIdx = SN >= 5 ? idx.slice(0, L) : idx.slice(SN - L);
+      let lpIdx = SN >= 5 ? idx.slice(0, L) : idx.slice(SN - L);
+      // in 2D bij 5 of 6 paren de vrije paren zo ver mogelijk uit elkaar
+      if (planar && SN >= 5) lpIdx = Array.from({ length: L }, (_, k) => SN - 1 - Math.round((k * SN) / L));
       const bondIdx = idx.filter((k) => !lpIdx.includes(k));
       let k0 = 0;
       if (parent != null) {
@@ -1228,11 +1265,11 @@
         const r1 = alignFn(slots[bondIdx[0]], toParent);
         slots = slots.map(r1);
         const other = B > 1 ? slots[bondIdx[1]] : L ? slots[lpIdx[0]] : null;
-        if (other && ref) {
-          // torsie: 'other' antiperiplanair t.o.v. een ander substituent van het ouderatoom
+        if (other && ref && !planar) {
+          // torsie: 'other' antiperiplanair t.o.v. een ander substituent van het ouderatoom (of onder mol.dihedral graden)
           const u = toParent;
           const p1 = vsub(other, vmul(u, vdot(u, other)));
-          const q = vmul(vsub(ref, vmul(u, vdot(u, ref))), -1);
+          const q = vrot(vsub(ref, vmul(u, vdot(u, ref))), u, ((mol.dihedral ?? 180) * Math.PI) / 180);
           if (Math.hypot(...p1) > 1e-6 && Math.hypot(...q) > 1e-6) {
             const t = Math.atan2(vdot(u, vcross(p1, q)), vdot(p1, q));
             slots = slots.map((v) => vrot(v, u, t));
@@ -1240,8 +1277,27 @@
         }
         k0 = 1;
       }
+      let children = a.neighbors.filter((j) => j !== parent);
+      if (planar && parent != null && children.length) {
+        // 2D: kies spiegelbeeld en volgorde zodat grote zijtakken zo ver mogelijk van de al geplaatste atomen liggen
+        const u = vnorm(vsub(positions[parent], positions[i]));
+        const placed = positions.filter((p, k) => p && k !== i);
+        let best = null;
+        for (const mirror of [false, true]) {
+          const s = mirror ? slots.map((v) => vsub(vmul(u, 2 * vdot(u, v)), v)) : slots;
+          for (const order of permutations(children)) {
+            let cost = 0;
+            order.forEach((j, c) => {
+              const p = vadd(positions[i], vmul(s[bondIdx[k0 + c]], lengthFn(i, j)));
+              for (const q of placed) { const d = vsub(p, q); cost += size[j] / Math.max(vdot(d, d), 1e-6); }
+            });
+            if (!best || cost < best.cost - 1e-9) best = { cost, s, order };
+          }
+        }
+        slots = best.s;
+        children = best.order;
+      }
       lonePairDirs[i] = lpIdx.map((k) => slots[k]);
-      const children = a.neighbors.filter((j) => j !== parent);
       const dirs = children.map((_, c) => slots[bondIdx[k0 + c]]);
       children.forEach((j, c) => { positions[j] = vadd(positions[i], vmul(dirs[c], lengthFn(i, j))); });
       children.forEach((j, c) => {
@@ -1788,11 +1844,13 @@ const E_COLORS = {
   normal: { glow: new THREE.Color(0x5fdcff), core: new THREE.Color(0xa8f0ff) },
   moved: { glow: new THREE.Color(0xffb938), core: new THREE.Color(0xffe39a) },
 };
-function paintElectrons(count, isMoved = () => false) {
+const _dimColor = new THREE.Color();
+function paintElectrons(count, isMoved = () => false, isDim = () => false) {
   for (let i = 0; i < count; i++) {
     const c = isMoved(i) ? E_COLORS.moved : E_COLORS.normal;
-    c.glow.toArray(eCol, i * 3);
-    eCore.setColorAt(i, c.core);
+    const f = isDim(i) ? 0.12 : 1;
+    _dimColor.copy(c.glow).multiplyScalar(f).toArray(eCol, i * 3);
+    eCore.setColorAt(i, _dimColor.copy(c.core).multiplyScalar(f));
   }
   eGeo.attributes.color.needsUpdate = true;
   if (eCore.instanceColor) eCore.instanceColor.needsUpdate = true;
@@ -1807,6 +1865,10 @@ const SHELL_COLORS = [0x6fd3ff, 0x74b9ff, 0x8c9dff, 0xa78bfa, 0xc084fc, 0xe879f9
 // [helling t.o.v. het horizontale vlak, draaiing rond de verticale as] per schil
 const SHELL_TILTS = [[0.28, 0.1], [1.12, 0.6], [0.66, -1.0], [1.42, 1.4], [0.22, 2.25], [0.98, -2.3], [1.3, 2.85], [0.52, -1.6]];
 const SUB_COLORS = [0x6fd3ff, 0x8ce99a, 0xffd166, 0xf783ac]; // s, p, d, f
+// 2D-weergave: elke baan ligt in het xy-vlak (de lokale y-as van een baan wijst naar de camera)
+const Q_FLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+const VIEW_NORMAL = new THREE.Vector3(0, 0, 1);
+const WHITE = new THREE.Color(0xffffff);
 const NUCLEON_R = { normal: 0.5, enlarged: 1.35 };
 const DEFAULT_DIR = new THREE.Vector3(0.32, 0.42, 1).normalize();
 
@@ -1816,6 +1878,9 @@ const state = {
   model: 'bohr',
   mode: 'atom',
   mol: null,
+  flat: 0, // 0 = 3D, 1 = 2D (vloeiende overgang)
+  flatTarget: 0,
+  sel: null, // aangeklikte baan
   showCharges: false,
   nucleusUnits: 1,
   nucleonR: 0.01,
@@ -1900,8 +1965,12 @@ function buildOrbits(a) {
       _qTilt.setFromAxisAngle(_X, d.l * 0.32);
       group.quaternion.copy(_qShell).multiply(_qTilt).multiply(_qSpin);
     }
+    const q3 = group.quaternion.clone();
+    const q2 = d.l === null ? Q_FLAT.clone() : Q_FLAT.clone().multiply(_qSpin); // in 2D blijft de rozet van ellipsen
+    group.quaternion.slerpQuaternions(q3, q2, state.flat);
     const color = new THREE.Color(d.color);
     const ring = new THREE.LineLoop(circleGeo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45, depthWrite: false }));
+    ring.userData.base = 0.45;
     ring.visible = state.showShells;
     group.add(ring);
     const el = document.createElement('div');
@@ -1913,7 +1982,7 @@ function buildOrbits(a) {
     atomGroup.add(group);
     const old = prev.get(d.key);
     return {
-      ...d, group, ring, label,
+      ...d, group, ring, label, q3, q2,
       a: old ? old.a : prevA.get(d.n) ?? 0.01, aT: 1,
       ecc: old ? old.ecc : 0, eccT: 0, eccTrue: d.ecc,
       speed: 1.3 / Math.pow(d.n, 0.85), // Kepler: zelfde lange as → zelfde omlooptijd
@@ -1921,9 +1990,12 @@ function buildOrbits(a) {
       labelE: d.l === null ? -0.5 - (d.n - 1) * 0.42 : 2.3,
     };
   });
+  let start = 0;
+  for (const o of state.orbits) { o.start = start; start += o.count; }
   eCore.count = a.electrons;
   eGeo.setDrawRange(0, a.electrons);
-  paintElectrons(a.electrons);
+  state.sel = null;
+  applyFocus();
 }
 
 function layoutTargets() {
@@ -1959,7 +2031,8 @@ function fitDistance(radius) {
 function fitCamera({ resetDir = false, instant = false } = {}) {
   const dist = fitDistance(state.fitRadius);
   let dir = camera.position.clone().sub(controls.target);
-  if (resetDir || dir.lengthSq() < 1e-8) dir = DEFAULT_DIR.clone();
+  if (state.flatTarget) dir = VIEW_NORMAL.clone(); // 2D: altijd recht op het vlak
+  else if (resetDir || dir.lengthSq() < 1e-8) dir = DEFAULT_DIR.clone();
   dir.normalize();
   controls.minDistance = 0.8;
   controls.maxDistance = Math.max(dist * 6, 60);
@@ -2070,7 +2143,7 @@ function setMode(mode) {
   else { clearOrbits(); state.atom = null; }
   const isMol = mode === 'molecule';
   // Bohr/Sommerfeld en "kern vergroten" gelden alleen voor één atoom
-  document.querySelector('.seg').hidden = isMol;
+  $('seg-model').hidden = isMol;
   $('tgl-enlarge').closest('label').hidden = isMol;
   $('sw-charges').hidden = !isMol;
 }
@@ -2080,30 +2153,40 @@ function loadMolecule(mol) {
   setMode('molecule');
   clearMolecule();
   state.mol = mol;
+  state.sel = null;
   const C = window.AtomCore;
-  const view = { disposables: [], rings: [], spheres: [], tracks: [], nuclei: [], nucScale: 0.01, time: 0, dipole: null };
+  const view = {
+    disposables: [], rings: [], spheres: [], tracks: [], nuclei: [], morphs: [], lines: [],
+    nucScale: 0.01, time: 0, dipole: null, lastF: -1, moved: new Set(),
+  };
   state.molView = view;
   const disp = view.disposables;
 
-  const addRing = (center, q, r, color, opacity) => {
+  const addRing = (color, opacity) => {
     const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
     disp.push(mat);
     const ring = new THREE.LineLoop(circleGeo, mat);
-    ring.position.copy(center);
-    ring.quaternion.copy(q);
-    ring.scale.setScalar(r);
+    ring.userData.base = opacity;
     molGroup.add(ring);
     view.rings.push(ring);
+    return ring;
   };
-  const addLabel = (html, cls, pos, center = [0.5, 0.5]) => {
+  // p3 = positie in 3D, p2 = positie in de 2D-weergave
+  const addLabel = (html, cls, p3, p2, center = [0.5, 0.5]) => {
     const el = document.createElement('div');
     el.className = cls;
     el.innerHTML = html;
     const obj = new CSS2DObject(el);
     obj.center.set(...center);
-    obj.position.copy(pos);
     molGroup.add(obj);
+    view.morphs.push({ obj, p3, p2 });
     return obj;
+  };
+  // elektronenbaan: middelpunt c, oriëntatie q en halve assen rx/rz, telkens voor 3D en 2D
+  const addTrack = (t) => {
+    Object.assign(t, { center: t.c3.clone(), q: t.q3.clone(), rx: t.rx3, rz: t.rz3 });
+    view.tracks.push(t);
+    return t;
   };
 
   // afmetingen per atoom: kernstraal en schilstralen
@@ -2119,177 +2202,377 @@ function loadMolecule(mol) {
     if (b.type === 'ion') return ri + rj + 1.2;
     return ri + rj - 0.42 * Math.min(ri, rj) * (1 + 0.28 * (b.order - 1));
   };
-  const geo = C.embedMolecule(mol, lengthFn);
-  const P = geo.positions.map((p) => new THREE.Vector3(...p));
-  let fit = 1;
+  const geo3 = C.embedMolecule(mol, lengthFn);
+  const geo2 = C.embedMolecule(mol, lengthFn, { planar: true });
+  const P3 = geo3.positions.map((p) => new THREE.Vector3(...p));
+  const P2 = geo2.positions.map((p) => new THREE.Vector3(...p));
+  let fit3 = 1, fit2 = 1;
 
   info.forEach((inf, i) => {
-    const a = inf.a, pos = P[i];
+    const a = inf.a;
     const g = new THREE.Group();
-    g.position.copy(pos);
     for (const m of nucleusMeshes(a.Z, a.N).meshes) { g.add(m); disp.push(m); }
     g.scale.setScalar(0.01);
     molGroup.add(g);
     view.nuclei.push(g);
+    view.morphs.push({ obj: g, p3: P3[i], p2: P2[i] });
     // bij een ion zijn alle schillen gewone ringen; bij een atoombinding alleen de binnenste schillen
     const ringCount = a.ion ? a.shells.length : a.shells.length - 1;
     for (let k = 0; k < ringCount; k++) {
       const [tilt, yaw] = SHELL_TILTS[k % SHELL_TILTS.length];
-      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, yaw + i * 1.3, 0, 'YXZ'));
-      addRing(pos, q, inf.radii[k], SHELL_COLORS[k % SHELL_COLORS.length], 0.4);
-      view.tracks.push({ center: pos, q, r: inf.radii[k], count: a.shells[k], speed: 1.3 / Math.pow(k + 1, 0.85), phase: i * 1.7 + k, atom: i, shell: k });
+      const r = inf.radii[k];
+      addTrack({
+        kind: 'shell', atom: i, shell: k, count: a.shells[k], speed: 1.3 / Math.pow(k + 1, 0.85), phase: i * 1.7 + k,
+        c3: P3[i], c2: P2[i], q3: new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, yaw + i * 1.3, 0, 'YXZ')), q2: Q_FLAT,
+        rx3: r, rz3: r, rx2: r, rz2: r, ring: addRing(SHELL_COLORS[k % SHELL_COLORS.length], 0.4),
+      });
     }
-    // buitenste schil als doorschijnende bol
+    // buitenste schil als doorschijnende bol (in 2D zie je die als cirkel)
     const mat = shellMaterial();
     disp.push(mat);
     const sph = new THREE.Mesh(sphereGeo, mat);
-    sph.position.copy(pos);
     sph.scale.setScalar(inf.outer);
     sph.renderOrder = 1;
     molGroup.add(sph);
     view.spheres.push({ mesh: sph, atom: a });
+    view.morphs.push({ obj: sph, p3: P3[i], p2: P2[i] });
     // vrije elektronenparen op de valentieschil
-    geo.lonePairDirs[i].forEach((d, k) => {
-      const dir = new THREE.Vector3(...d);
-      view.tracks.push({
-        center: pos.clone().addScaledVector(dir, inf.outer), q: new THREE.Quaternion().setFromUnitVectors(Y_AXIS, dir),
-        r: 0.55, count: 2, speed: 2.4, phase: k * 1.1 + i, atom: i, lone: true,
+    geo3.lonePairDirs[i].forEach((d, k) => {
+      const d3 = new THREE.Vector3(...d), d2 = new THREE.Vector3(...geo2.lonePairDirs[i][k]);
+      addTrack({
+        kind: 'lone', atom: i, count: 2, speed: 2.4, phase: k * 1.1 + i,
+        c3: P3[i].clone().addScaledVector(d3, inf.outer), c2: P2[i].clone().addScaledVector(d2, inf.outer),
+        q3: new THREE.Quaternion().setFromUnitVectors(Y_AXIS, d3), q2: Q_FLAT,
+        rx3: 0.55, rz3: 0.55, rx2: 0.55, rz2: 0.55, ring: addRing(0x9fe8ff, 0.22),
       });
     });
-    addLabel(atomLabelHTML(a), 'atom-label', pos.clone().add(new THREE.Vector3(0, inf.nR + 0.35, 0)), [0.5, 1]);
-    fit = Math.max(fit, pos.length() + inf.outer);
+    const off = new THREE.Vector3(0, inf.nR + 0.35, 0);
+    addLabel(atomLabelHTML(a), 'atom-label', P3[i].clone().add(off), P2[i].clone().add(off), [0.5, 1]);
+    fit3 = Math.max(fit3, P3[i].length() + inf.outer);
+    fit2 = Math.max(fit2, P2[i].length() + inf.outer);
   });
 
   // bindingen
-  const labelled = new Set();
+  const labelled = new Map();
   const received = mol.atoms.map(() => []);
+  const perpOf3 = (axis) => {
+    const v = Y_AXIS.clone().addScaledVector(axis, -axis.y);
+    return (v.lengthSq() < 1e-4 ? v.set(1, 0, 0) : v).normalize();
+  };
+  const perpOf2 = (axis) => new THREE.Vector3(-axis.y, axis.x, 0);
   for (const b of mol.bonds) {
-    const pi = P[b.i], pj = P[b.j], ri = info[b.i].outer, rj = info[b.j].outer;
-    const axis = pj.clone().sub(pi);
-    const d = axis.length();
-    axis.normalize();
+    const ri = info[b.i].outer, rj = info[b.j].outer;
+    const axis3 = P3[b.j].clone().sub(P3[b.i]).normalize(), axis2 = P2[b.j].clone().sub(P2[b.i]).normalize();
+    const d = P3[b.i].distanceTo(P3[b.j]);
+    const perp3 = perpOf3(axis3), perp2 = perpOf2(axis2);
     const color = BOND_COLORS[b.type];
-    const lineGeo = new THREE.BufferGeometry().setFromPoints([pi, pj]);
     const lineMat = b.type === 'ion'
       ? new THREE.LineDashedMaterial({ color, dashSize: 0.45, gapSize: 0.35, transparent: true, opacity: 0.85 })
       : new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.28 });
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([P3[b.i], P3[b.j]]);
     disp.push(lineGeo, lineMat);
     const line = new THREE.Line(lineGeo, lineMat);
-    if (b.type === 'ion') line.computeLineDistances();
+    line.userData.base = lineMat.opacity;
     molGroup.add(line);
+    view.lines.push({ line, a3: P3[b.i], b3: P3[b.j], a2: P2[b.i], b2: P2[b.j], dashed: b.type === 'ion' });
 
-    const perp = Y_AXIS.clone().addScaledVector(axis, -axis.y);
-    if (perp.lengthSq() < 1e-4) perp.set(1, 0, 0);
-    perp.normalize();
-    let labelPos;
+    let track = null, l3, l2;
     if (b.type === 'ion') {
-      labelPos = pi.clone().lerp(pj, 0.5).addScaledVector(perp, 0.8);
+      l3 = P3[b.i].clone().lerp(P3[b.j], 0.5).addScaledVector(perp3, 0.8);
+      l2 = P2[b.i].clone().lerp(P2[b.j], 0.5).addScaledVector(perp2, 0.8);
       // overgedragen elektronen vertrekken uit de (nu lege) buitenste schil van het metaalatoom
       const donor = info[b.donor];
-      const from = P[b.donor].clone().addScaledVector(P[b.acceptor].clone().sub(P[b.donor]).normalize(), donor.nR + MOL.gap + donor.a.shells.length * MOL.spacing);
-      for (let t = 0; t < b.order; t++) received[b.acceptor].push(from);
+      const rFrom = donor.nR + MOL.gap + donor.a.shells.length * MOL.spacing;
+      const from = (P) => P[b.donor].clone().addScaledVector(P[b.acceptor].clone().sub(P[b.donor]).normalize(), rFrom);
+      for (let t = 0; t < b.order; t++) received[b.acceptor].push({ f3: from(P3), f2: from(P2) });
     } else {
-      // gedeeld elektronenpaar op de snijcirkel van de twee valentieschillen
+      // 3D: gedeeld elektronenpaar op de snijcirkel van de twee valentieschillen
       const x = (d * d + ri * ri - rj * rj) / (2 * d);
       const rho = Math.sqrt(Math.max(ri * ri - x * x, 0.3));
-      const center = pi.clone().addScaledVector(axis, x);
-      const q = new THREE.Quaternion().setFromUnitVectors(Y_AXIS, axis);
-      addRing(center, q, rho, color, 0.8);
-      view.tracks.push({ center, q, r: rho, count: 2 * b.order, speed: 1.7, phase: b.i * 0.7 + b.j, bond: true });
-      labelPos = center.clone().addScaledVector(perp, rho + 0.4);
+      // 2D: een ellips binnen de lens waar de twee cirkels overlappen
+      const w = ri + rj - d;
+      const c2 = P2[b.i].clone().addScaledVector(axis2, (d - rj + ri) / 2);
+      const q2 = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(perp2, VIEW_NORMAL, axis2));
+      track = addTrack({
+        kind: 'bond', bond: b, count: 2 * b.order, speed: 1.7, phase: b.i * 0.7 + b.j,
+        c3: P3[b.i].clone().addScaledVector(axis3, x), c2, q3: new THREE.Quaternion().setFromUnitVectors(Y_AXIS, axis3), q2,
+        rx3: rho, rz3: rho, rx2: rho * 0.85, rz2: Math.max(w * 0.38, 0.35), ring: addRing(color, 0.8),
+      });
+      l3 = track.c3.clone().addScaledVector(perp3, rho + 0.4);
+      l2 = c2.clone().addScaledVector(perp2, rho * 0.85 + 0.5);
     }
     const A = mol.atoms[b.i].el.symbol, B = mol.atoms[b.j].el.symbol;
     const key = [A, B].sort().join() + b.order + b.type;
     if (!labelled.has(key)) {
-      labelled.add(key);
       const pair = b.type === 'ion' ? `${A}···${B}` : A + ['', '–', '=', '≡'][b.order] + B;
-      addLabel(`<span style="--c:#${new THREE.Color(color).getHexString()}">${pair} · ${C.BOND_TYPES[b.type].short}</span>`, 'bond-label', labelPos);
+      if (track) track.ownsLabel = true;
+      labelled.set(key, addLabel(`<span style="--c:#${new THREE.Color(color).getHexString()}">${pair} · ${C.BOND_TYPES[b.type].short}</span>`, 'bond-label', l3, l2));
     }
+    if (track && track.ownsLabel) track.label = labelled.get(key);
   }
   // de laatste elektronen in de buitenste schil van een negatief ion zijn de overgedragen elektronen
   for (const t of view.tracks) {
-    const a = mol.atoms[t.atom];
-    if (t.atom != null && a && a.ion < 0 && t.shell === a.shells.length - 1) t.moved = received[t.atom];
+    const a = t.atom != null ? mol.atoms[t.atom] : null;
+    if (t.kind === 'shell' && a.ion < 0 && t.shell === a.shells.length - 1) t.moved = received[t.atom];
   }
 
-  // dipoolpijl (wijst naar de δ−-kant)
+  // dipoolpijl (wijst naar de δ−-kant); in 2D opnieuw berekend uit de vlakke ligging
   if (mol.dipole) {
-    const dir = new THREE.Vector3(...mol.dipole);
-    const len = Math.max(4, fit * 0.9);
-    const arrow = new THREE.ArrowHelper(dir, dir.clone().multiplyScalar(-len / 2), len, 0xffd166, len * 0.14, len * 0.07);
+    const d3 = new THREE.Vector3(...mol.dipole);
+    const mu2 = new THREE.Vector3();
+    const L = mol.bonds.length ? P3[mol.bonds[0].i].distanceTo(P3[mol.bonds[0].j]) : 1; // typische bindingslengte
+    for (const b of mol.bonds) if (b.type === 'polair') mu2.addScaledVector(P2[b.minus].clone().sub(P2[b.plus]).normalize(), b.dEN);
+    mol.atoms.forEach((a, i) => { if (a.formal) mu2.addScaledVector(P2[i], -a.formal / L); });
+    const d2 = mu2.length() > 0.05 ? mu2.normalize() : null;
+    const len = Math.max(4, fit3 * 0.9);
+    const arrow = new THREE.ArrowHelper(d3, d3.clone().multiplyScalar(-len / 2), len, 0xffd166, len * 0.14, len * 0.07);
     for (const m of [arrow.line.material, arrow.cone.material]) { m.depthTest = false; m.transparent = true; disp.push(m); }
-    arrow.renderOrder = 5;
-    arrow.line.renderOrder = arrow.cone.renderOrder = 5;
+    arrow.renderOrder = arrow.line.renderOrder = arrow.cone.renderOrder = 5;
     molGroup.add(arrow);
-    const lbl = addLabel('<span>dipool</span>', 'dipole-label', dir.clone().multiplyScalar(len / 2 + 0.6));
-    view.dipole = [arrow, lbl];
+    const el = document.createElement('div');
+    el.className = 'dipole-label';
+    el.innerHTML = '<span>dipool</span>';
+    const label = new CSS2DObject(el);
+    molGroup.add(label);
+    view.dipole = { arrow, label, d3, d2, len };
   }
 
   // elektronen tellen en kleuren
   let n = 0;
-  const moved = new Set();
   for (const t of view.tracks) {
-    for (let j = 0; j < t.count; j++, n++) if (t.moved && j >= t.count - t.moved.length) moved.add(n);
+    t.start = n;
+    for (let j = 0; j < t.count; j++, n++) if (t.moved && j >= t.count - t.moved.length) view.moved.add(n);
   }
   eCore.count = n;
   eGeo.setDrawRange(0, n);
-  paintElectrons(n, (i) => moved.has(i));
 
-  state.fitRadius = fit + 0.5;
-  state.eSizeTarget = 0.15 + 0.008 * Math.min(fit, 32);
-  applyMoleculeVisibility();
+  view.fit3 = fit3 + 0.5;
+  view.fit2 = fit2 + 0.5;
+  state.fitRadius = state.flatTarget ? view.fit2 : view.fit3;
+  state.eSizeTarget = 0.15 + 0.008 * Math.min(fit3, 32);
+  applyFlatMolecule(state.flat);
+  applyFocus();
   fitCamera({ resetDir: first, instant: first });
+}
+
+// Zet alle objecten op de juiste plek tussen 3D (f = 0) en 2D (f = 1)
+function applyFlatMolecule(f) {
+  const view = state.molView;
+  if (!view) return;
+  for (const m of view.morphs) m.obj.position.lerpVectors(m.p3, m.p2, f);
+  for (const t of view.tracks) {
+    t.center.lerpVectors(t.c3, t.c2, f);
+    t.q.slerpQuaternions(t.q3, t.q2, f);
+    t.rx = t.rx3 + (t.rx2 - t.rx3) * f;
+    t.rz = t.rz3 + (t.rz2 - t.rz3) * f;
+    t.ring.position.copy(t.center);
+    t.ring.quaternion.copy(t.q);
+    t.ring.scale.set(t.rx, 1, t.rz);
+  }
+  for (const l of view.lines) {
+    const pos = l.line.geometry.attributes.position;
+    tmpV.lerpVectors(l.a3, l.a2, f); pos.setXYZ(0, tmpV.x, tmpV.y, tmpV.z);
+    tmpV.lerpVectors(l.b3, l.b2, f); pos.setXYZ(1, tmpV.x, tmpV.y, tmpV.z);
+    pos.needsUpdate = true;
+    l.line.geometry.computeBoundingSphere();
+    if (l.dashed) l.line.computeLineDistances();
+  }
+  if (view.dipole) {
+    const dp = view.dipole;
+    const dir = dp.d2 ? dp.d3.clone().lerp(dp.d2, f) : dp.d3.clone();
+    if (dir.lengthSq() < 1e-6) dir.copy(dp.d2 || dp.d3);
+    dir.normalize();
+    dp.arrow.setDirection(dir);
+    dp.arrow.position.copy(dir).multiplyScalar(-dp.len / 2);
+    dp.label.position.copy(dir).multiplyScalar(dp.len / 2 + 0.6);
+    const hide = !dp.d2 && f > 0.5; // in de vlakke tekening heffen de dipolen elkaar op
+    if (hide !== dp.hidden) { dp.hidden = hide; applyMoleculeVisibility(); }
+  }
+  view.lastF = f;
 }
 
 function applyMoleculeVisibility() {
   const view = state.molView;
   if (!view) return;
-  for (const r of view.rings) r.visible = state.showShells;
+  const focus = !!state.sel;
+  for (const r of view.rings) r.visible = state.showShells || (focus && r === state.sel.ring);
+  for (const l of view.lines) l.line.material.opacity = l.line.userData.base * (focus ? 0.25 : 1);
   for (const s of view.spheres) {
     const a = s.atom;
     const sign = Math.sign(a.ion || a.delta || a.formal);
     const u = s.mesh.material.uniforms;
     s.mesh.visible = state.showShells || state.showCharges;
-    if (state.showCharges && sign) {
-      u.uColor.value.copy(sign > 0 ? CHARGE_COLORS.plus : CHARGE_COLORS.minus);
-      u.uStrength.value = 1.6;
-    } else {
-      u.uColor.value.copy(CHARGE_COLORS.neutral);
-      u.uStrength.value = 1;
-    }
+    const charged = state.showCharges && sign;
+    u.uColor.value.copy(charged ? (sign > 0 ? CHARGE_COLORS.plus : CHARGE_COLORS.minus) : CHARGE_COLORS.neutral);
+    u.uStrength.value = (charged ? 1.6 : 1) * (focus ? 0.3 : 1);
   }
-  if (view.dipole) for (const o of view.dipole) o.visible = state.showCharges;
+  if (view.dipole) {
+    const on = state.showCharges && !view.dipole.hidden;
+    view.dipole.arrow.visible = view.dipole.label.visible = on;
+  }
 }
 
 const easeInOut = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 function updateMolecule(dt, k) {
   const view = state.molView;
   if (!view) return;
+  if (Math.abs(state.flat - view.lastF) > 1e-4) applyFlatMolecule(state.flat);
   view.nucScale += (MOL.nucleon - view.nucScale) * k;
   for (const g of view.nuclei) g.scale.setScalar(view.nucScale);
   view.time += dt;
   const move = easeInOut(Math.min(1, Math.max(0, (view.time - 0.6) / 1.8)));
   const es = state.eSize;
+  const sel = state.sel ? state.sel.key : null;
   let i = 0;
   for (const t of view.tracks) {
     const firstMoved = t.moved ? t.count - t.moved.length : Infinity;
+    const size = t === sel ? es * 1.45 : es;
     for (let j = 0; j < t.count; j++, i++) {
       const ang = t.phase + state.eTime * t.speed + (j * Math.PI * 2) / t.count;
-      tmpV.set(Math.cos(ang) * t.r, 0, Math.sin(ang) * t.r).applyQuaternion(t.q).add(t.center);
+      tmpV.set(Math.cos(ang) * t.rx, 0, Math.sin(ang) * t.rz).applyQuaternion(t.q).add(t.center);
       if (j >= firstMoved && move < 1) {
         // overgedragen elektron vliegt in een boogje van het metaal naar het niet-metaal
-        tmpV2.copy(t.moved[j - firstMoved]).lerp(tmpV, move);
+        const from = t.moved[j - firstMoved];
+        tmpV2.lerpVectors(from.f3, from.f2, state.flat).lerp(tmpV, move);
         tmpV2.y += Math.sin(Math.PI * move) * 2.5;
         tmpV.copy(tmpV2);
       }
       ePos[3 * i] = tmpV.x; ePos[3 * i + 1] = tmpV.y; ePos[3 * i + 2] = tmpV.z;
-      tmpM.makeScale(es, es, es).setPosition(tmpV);
+      tmpM.makeScale(size, size, size).setPosition(tmpV);
       eCore.setMatrixAt(i, tmpM);
     }
   }
   eGeo.attributes.position.needsUpdate = true;
   eCore.instanceMatrix.needsUpdate = true;
   eGlow.material.size = es * 6;
+}
+
+// =====================================================================
+// 2D-weergave en het aanklikken van een baan
+// =====================================================================
+function setView(v, { instant = false } = {}) {
+  const flat = v === '2d';
+  state.flatTarget = flat ? 1 : 0;
+  if (instant) state.flat = state.flatTarget;
+  for (const b of document.querySelectorAll('[data-view]')) setPressed(b, b.dataset.view === v);
+  controls.enableRotate = !flat;
+  controls.mouseButtons.LEFT = flat ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+  controls.touches.ONE = flat ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE;
+  if (flat && controls.autoRotate) { controls.autoRotate = false; setPressed($('btn-rotate'), false); }
+  $('btn-rotate').disabled = flat;
+  $('viewer').classList.toggle('flat', flat);
+  if (state.molView) state.fitRadius = flat ? state.molView.fit2 : state.molView.fit3;
+  try { localStorage.setItem('atoommodel-view', v); } catch (e) { /* geen opslag beschikbaar */ }
+  if (state.atom || state.mol) fitCamera({ resetDir: true, instant });
+}
+
+const fmt2 = (x) => x.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function orbitInfo(o) {
+  if (o.l === null) return `<b>${o.name}-schil</b> · n = ${o.n} · ${o.count} van max. ${2 * o.n * o.n} elektronen`;
+  return `<b>${o.key}-subschil</b> · n = ${o.n}, k = ${o.k} · ${o.count} e⁻ · ${o.k === o.n ? 'cirkelbaan' : `ellips, e = ${fmt2(o.eccTrue)}`}`;
+}
+function trackInfo(t) {
+  const C = window.AtomCore, mol = state.mol;
+  const sym = (i) => mol.atoms[i].el.symbol + (mol.atoms[i].ion ? C.toSup(C.ionSuffix(mol.atoms[i].ion)) : '');
+  if (t.kind === 'shell') {
+    const extra = t.moved ? ` (waarvan ${t.moved.length} overgedragen)` : '';
+    return `<b>${SHELL_NAMES[t.shell]}-schil van ${sym(t.atom)}</b> · ${t.count} e⁻${extra}`;
+  }
+  if (t.kind === 'lone') return `<b>Vrij elektronenpaar</b> van ${sym(t.atom)} · 2 e⁻, niet betrokken bij een binding`;
+  const b = t.bond, pair = mol.atoms[b.i].el.symbol + ['', '–', '=', '≡'][b.order] + mol.atoms[b.j].el.symbol;
+  return `<b>${b.order > 1 ? b.order + ' gedeelde elektronenparen' : 'Gedeeld elektronenpaar'}</b> ${pair} · ${C.BOND_TYPES[b.type].nl} · ${2 * b.order} e⁻`;
+}
+
+// Alles wat aangeklikt kan worden: een functie die punten op de baan geeft, plus welke elektronen erbij horen
+function selectables() {
+  if (state.mode === 'atom') {
+    return state.orbits.map((o) => ({
+      key: o, ring: o.ring, start: o.start, count: o.count, label: o.label,
+      point: (t, out) => orbitPoint(o, t, out).applyQuaternion(o.group.quaternion), info: () => orbitInfo(o),
+    }));
+  }
+  return (state.molView ? state.molView.tracks : []).map((t) => ({
+    key: t, ring: t.ring, start: t.start, count: t.count, label: t.label || null,
+    point: (a, out) => out.set(Math.cos(a) * t.rx, 0, Math.sin(a) * t.rz).applyQuaternion(t.q).add(t.center), info: () => trackInfo(t),
+  }));
+}
+
+// Zoekt de baan die op het scherm het dichtst bij de muis/vinger ligt
+const _pv = new THREE.Vector3();
+function pickOrbit(clientX, clientY, maxPx) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const x = clientX - rect.left, y = clientY - rect.top;
+  let best = null, bestD = maxPx;
+  for (const s of selectables()) {
+    if (!s.ring || !s.count) continue;
+    for (let k = 0; k < 96; k++) {
+      s.point((k / 96) * Math.PI * 2, _pv).project(camera);
+      if (_pv.z > 1) continue;
+      const d = Math.hypot((_pv.x + 1) / 2 * rect.width - x, (1 - _pv.y) / 2 * rect.height - y);
+      if (d < bestD) { bestD = d; best = s; }
+    }
+  }
+  return best;
+}
+
+function select(sel) {
+  state.sel = sel;
+  applyFocus();
+}
+
+// Uitgelichte baan: helder en met grotere elektronen; de rest vervaagt
+function applyFocus() {
+  const sel = state.sel, focus = !!sel;
+  const rings = state.mode === 'atom' ? state.orbits.map((o) => o.ring) : (state.molView ? state.molView.rings : []);
+  for (const r of rings) {
+    const on = focus && r === sel.ring;
+    if (!r.userData.color) r.userData.color = r.material.color.clone();
+    r.material.color.copy(r.userData.color);
+    if (on) r.material.color.lerp(WHITE, 0.35);
+    r.material.opacity = focus ? (on ? 1 : 0.06) : r.userData.base;
+    if (state.mode === 'atom') r.visible = state.showShells || on;
+  }
+  const moved = state.mode === 'molecule' && state.molView ? state.molView.moved : null;
+  paintElectrons(eCore.count, (i) => !!moved && moved.has(i), (i) => focus && (i < sel.start || i >= sel.start + sel.count));
+  for (const m of [protonMat, neutronMat]) {
+    m.transparent = focus;
+    m.opacity = focus ? 0.25 : 1;
+    m.depthWrite = !focus;
+    m.needsUpdate = true;
+  }
+  const layer = labelRenderer.domElement;
+  layer.classList.toggle('focus', focus);
+  for (const el of layer.querySelectorAll('.sel')) el.classList.remove('sel');
+  if (focus && sel.label) sel.label.element.classList.add('sel');
+  $('sel-info').hidden = !focus;
+  if (focus) $('sel-text').innerHTML = sel.info();
+  applyMoleculeVisibility();
+}
+
+{
+  const dom = renderer.domElement;
+  let down = null, hoverQueued = false, hoverEvt = null;
+  dom.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
+  dom.addEventListener('pointerup', (e) => {
+    if (!down || down.id !== e.pointerId || e.button !== 0) return;
+    const dist = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    down = null;
+    if (dist > 6) return; // slepen = draaien/verschuiven, geen klik
+    const hit = pickOrbit(e.clientX, e.clientY, e.pointerType === 'touch' ? 24 : 12);
+    select(hit && (!state.sel || hit.key !== state.sel.key) ? hit : null);
+  });
+  dom.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || e.buttons) return;
+    hoverEvt = e;
+    if (hoverQueued) return;
+    hoverQueued = true;
+    requestAnimationFrame(() => {
+      hoverQueued = false;
+      dom.style.cursor = pickOrbit(hoverEvt.clientX, hoverEvt.clientY, 12) ? 'pointer' : '';
+    });
+  });
+  $('sel-close').addEventListener('click', () => select(null));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.sel) select(null); });
 }
 
 // ---------- Animatie ----------
@@ -2309,13 +2592,15 @@ function eccentricAnomaly(M, e) {
 function updateElectrons() {
   let i = 0;
   const e = state.eSize;
+  const sel = state.sel ? state.sel.key : null;
   for (const o of state.orbits) {
     const q = o.group.quaternion;
+    const size = o === sel ? e * 1.45 : e;
     for (let j = 0; j < o.count; j++) {
       const M = o.phase + state.eTime * o.speed + (j * Math.PI * 2) / o.count;
       orbitPoint(o, o.ecc > 1e-4 ? eccentricAnomaly(M, o.ecc) : M, tmpV).applyQuaternion(q);
       ePos[3 * i] = tmpV.x; ePos[3 * i + 1] = tmpV.y; ePos[3 * i + 2] = tmpV.z;
-      tmpM.makeScale(e, e, e).setPosition(tmpV);
+      tmpM.makeScale(size, size, size).setPosition(tmpV);
       eCore.setMatrixAt(i, tmpM);
       i++;
     }
@@ -2334,6 +2619,8 @@ function frame(now) {
   const k = 1 - Math.exp(-dt * 7);
 
   state.eSize += (state.eSizeTarget - state.eSize) * k;
+  state.flat += (state.flatTarget - state.flat) * (1 - Math.exp(-dt * 5));
+  if (Math.abs(state.flatTarget - state.flat) < 1e-3) state.flat = state.flatTarget;
   if (!state.paused) state.eTime += dt * state.speed;
   if (state.mode === 'molecule') updateMolecule(dt, k);
   else updateAtom(k);
@@ -2356,7 +2643,9 @@ function updateAtom(k) {
   state.nucleonR += (state.nucleonRTarget - state.nucleonR) * k;
   nucleusGroup.scale.setScalar(state.nucleonR);
   nucLabel.position.set(0, state.nucleusUnits * state.nucleonR + 0.25, 0);
+  const f = easeInOut(state.flat);
   for (const o of state.orbits) {
+    o.group.quaternion.slerpQuaternions(o.q3, o.q2, f);
     o.a += (o.aT - o.a) * k;
     o.ecc += (o.eccT - o.ecc) * k;
     o.ring.scale.set(o.a, 1, o.a * Math.sqrt(1 - o.ecc * o.ecc));
@@ -2392,8 +2681,7 @@ $('btn-pause').addEventListener('click', (e) => {
 });
 $('tgl-shells').addEventListener('change', (e) => {
   state.showShells = e.target.checked;
-  for (const o of state.orbits) o.ring.visible = state.showShells;
-  applyMoleculeVisibility();
+  applyFocus();
   labelRenderer.domElement.classList.toggle('no-shells', !state.showShells);
 });
 $('tgl-labels').addEventListener('change', (e) => {
@@ -2419,6 +2707,11 @@ for (const b of document.querySelectorAll('[data-model]')) {
 }
 try { if (localStorage.getItem('atoommodel-model') === 'sommerfeld') setModel('sommerfeld'); } catch (e) { /* geen opslag beschikbaar */ }
 for (const id of ['btn-reset', 'btn-rotate', 'btn-pause', 'tgl-shells', 'tgl-labels', 'tgl-enlarge', 'tgl-charges', 'speed']) $(id).disabled = false;
+for (const b of document.querySelectorAll('[data-view]')) {
+  b.addEventListener('click', () => setView(b.dataset.view));
+  b.disabled = false;
+}
+try { if (localStorage.getItem('atoommodel-view') === '2d') setView('2d', { instant: true }); } catch (e) { /* geen opslag beschikbaar */ }
 
 window.AtomViewer = { load, loadMolecule };
 if (window.App && window.App.current) {
